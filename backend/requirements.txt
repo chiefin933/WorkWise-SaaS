@@ -1,0 +1,20 @@
+Django>=6.0,<6.1
+django-cors-headers>=4.0
+djangorestframework>=3.15
+djangorestframework-simplejwt>=2.0
+python-dotenv>=1.0
+requests>=2.31
+python-jose[cryptography]>=3.5
+django-ratelimit>=4.1
+reportlab>=4.0
+svix>=1.95.0
+psycopg2-binary>=2.9.12
+
+dj-database-url==3.1.2
+psycopg2-binary==2.9.12
+
+# ── Async task queue ──────────────────────────────────────────────────────────
+celery>=5.3,<6.0
+redis>=5.0,<6.0
+django-celery-results>=2.5,<3.0
+django-daraja>=1.0.8
