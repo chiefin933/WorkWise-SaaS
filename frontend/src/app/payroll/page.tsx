@@ -514,25 +514,25 @@ export default function PayrollPage() {
                                   <div className="overflow-x-auto">
                                   <table className="w-full text-left text-xs border-collapse">
                                     <thead>
-                                      <tr className="border-b border-slate-200">
-                                        <th className="pb-2 font-semibold text-slate-500">Employee</th>
-                                        <th className="pb-2 font-semibold text-slate-500">Gross</th>
-                                        <th className="pb-2 font-semibold text-slate-500">PAYE</th>
-                                        <th className="pb-2 font-semibold text-slate-500">NSSF+SHIF+AHL</th>
-                                        <th className="pb-2 font-semibold text-slate-500">Net Take-Home</th>
-                                        <th className="pb-2 font-semibold text-slate-500 text-right">Payslip</th>
+                                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300">Employee</th>
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300">Gross</th>
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300">PAYE</th>
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300">NSSF+SHIF+AHL</th>
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300">Net Take-Home</th>
+                                        <th className="pb-2 font-semibold text-slate-600 dark:text-slate-300 text-right">Payslip</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                       {(expandedRunDetail?.items ?? []).map((item: PayrollItem) => {
                                         const statutorySum = Number(item.nssf) + Number(item.shif) + Number(item.ahl);
                                         return (
-                                          <tr key={item.id} className="hover:bg-slate-100/50">
-                                            <td className="py-2.5 font-bold text-slate-800">{item.employee_name}</td>
-                                            <td className="py-2.5 font-semibold text-slate-900 tabular-nums">Ksh {Number(item.gross_salary).toLocaleString()}</td>
-                                            <td className="py-2.5 text-slate-600 tabular-nums">Ksh {Number(item.paye).toLocaleString()}</td>
-                                            <td className="py-2.5 text-slate-600 tabular-nums">Ksh {statutorySum.toLocaleString()}</td>
-                                            <td className="py-2.5 font-bold text-teal-600 tabular-nums">Ksh {Number(item.net_pay).toLocaleString()}</td>
+                                          <tr key={item.id} className="hover:bg-slate-100/50 dark:hover:bg-slate-700/30">
+                                            <td className="py-2.5 font-bold text-slate-800 dark:text-slate-100">{item.employee_name}</td>
+                                            <td className="py-2.5 font-semibold text-slate-900 dark:text-slate-100 tabular-nums">Ksh {Number(item.gross_salary).toLocaleString()}</td>
+                                            <td className="py-2.5 text-slate-700 dark:text-slate-200 tabular-nums">Ksh {Number(item.paye).toLocaleString()}</td>
+                                            <td className="py-2.5 text-slate-700 dark:text-slate-200 tabular-nums">Ksh {statutorySum.toLocaleString()}</td>
+                                            <td className="py-2.5 font-bold text-teal-600 dark:text-teal-400 tabular-nums">Ksh {Number(item.net_pay).toLocaleString()}</td>
                                             <td className="py-2.5 text-right">
                                               <Button
                                                 size="sm"

@@ -85,15 +85,15 @@ function QuickSignInForm() {
           <Zap className="h-4 w-4 text-teal-500" /> Sign in with email &amp; password
         </button>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-3 p-4 border border-slate-100 rounded-2xl bg-slate-50/60" noValidate>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Quick sign in</p>
+        <form onSubmit={handleSubmit} className="space-y-3 p-4 border border-slate-100 dark:border-slate-700 rounded-2xl bg-slate-50/60 dark:bg-slate-800/60" noValidate>
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1">Quick sign in</p>
           <input
             type="email"
             autoComplete="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="Work email"
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-slate-400"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-slate-400"
           />
           <div className="relative">
             <input
@@ -102,7 +102,7 @@ function QuickSignInForm() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-slate-400"
+              className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-slate-400"
             />
             <button type="button" tabIndex={-1} onClick={() => setShowPwd(v => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
