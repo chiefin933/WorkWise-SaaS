@@ -126,7 +126,12 @@ export default function Sidebar() {
            </nav>
            {!isCollapsed && role === 'EMPLOYEE' && (
              <div className="mt-6 rounded-xl border border-slate-800 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-slate-500">
-               Payroll, Reports & Employees are managed by your HR team.
+               Payroll, Reports &amp; Employees are managed by your HR team.
+             </div>
+           )}
+          {!isCollapsed && !role && (
+             <div className="mt-6 rounded-xl border border-amber-800/30 bg-amber-500/5 px-4 py-3 text-xs leading-relaxed text-amber-500/80">
+               Your account is being set up. If this persists, contact your administrator.
              </div>
            )}
         </div>

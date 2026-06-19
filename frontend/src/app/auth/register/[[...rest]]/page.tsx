@@ -321,7 +321,11 @@ function RegisterPageInner() {
             )}
 
             <h1 className="text-3xl font-bold text-slate-900 font-outfit mb-1">Create your workspace</h1>
-            <p className="text-slate-500 text-sm mb-8">Set up your administrator account to get started.</p>
+            <p className="text-slate-500 text-sm mb-4">Set up your administrator account to get started.</p>
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs mb-4">
+              <span className="mt-0.5 shrink-0">⚠️</span>
+              <span>This page is for <strong>registering a new company</strong>. If you were invited by your employer, use the invite link sent to your email instead.</span>
+            </div>
 
             <form id="register-form" onSubmit={handleSubmit} className="space-y-4" noValidate>
               {/* Company Name */}
