@@ -168,15 +168,19 @@ def payroll_notification_signal(sender, instance, created, **kwargs):
 @receiver(post_save, sender='employees.Employee')
 def employee_notification_signal(sender, instance, created, **kwargs):
     from users.models import User, Notification
-    
+
+    # Only notify for genuine new employees, not bulk imports or updates.
+    # Bulk imports set _skip_signal=True on the instance to suppress noise.
+    if getattr(instance, '_skip_signal', False):
+        return
+
     tenant = instance.tenant
-    
+
     if created:
-        # Employee created -> Notifies All ADMIN users
         recipients = User.objects.filter(tenant=tenant, role='ADMIN')
         title = "New Employee Onboarded"
         message = f"{instance.name} has completed onboarding and is now active in the system."
-        
+
         for recipient in recipients:
             if not Notification.objects.filter(
                 tenant=tenant,

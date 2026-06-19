@@ -210,11 +210,52 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             
             if errors and not employees_to_create:
                 return Response({"error": "No valid employees found.", "details": errors[:10]}, status=status.HTTP_400_BAD_REQUEST)
-                
-            Employee.objects.bulk_create(employees_to_create, ignore_conflicts=True)
-            
+
+            # Upsert: update existing employees (matched by email) or create new ones
+            created_count = 0
+            updated_count = 0
+            for emp_obj in employees_to_create:
+                if emp_obj.email:
+                    updated = Employee.unscoped.filter(
+                        tenant=tenant, email__iexact=emp_obj.email
+                    ).update(
+                        name=emp_obj.name,
+                        phone=emp_obj.phone,
+                        department=emp_obj.department,
+                        job_title=emp_obj.job_title,
+                        kra_pin=emp_obj.kra_pin,
+                        employment_type=emp_obj.employment_type,
+                        salary_basic=emp_obj.salary_basic,
+                        payment_method=emp_obj.payment_method,
+                    )
+                    if updated:
+                        updated_count += 1
+                        continue
+                # No email or no existing match — create new, suppress per-row signal
+                emp_obj._skip_signal = True
+                emp_obj.save()
+                created_count += 1
+
+            # Send a single summary notification for the whole import
+            if created_count > 0:
+                try:
+                    from users.models import User, Notification
+                    admins = User.objects.filter(tenant=tenant, role='ADMIN')
+                    for admin in admins:
+                        Notification.objects.create(
+                            tenant=tenant,
+                            recipient=admin,
+                            type='employee',
+                            title='Bulk Employee Import Complete',
+                            message=f'{created_count} employee(s) added and {updated_count} updated via CSV import.',
+                            action_url='/employees',
+                        )
+                except Exception:
+                    pass
+
+            msg = f"Import complete: {created_count} created, {updated_count} updated."
             return Response({
-                "message": f"Successfully imported {len(employees_to_create)} employees.",
+                "message": msg,
                 "warnings": errors[:10] if errors else []
             }, status=status.HTTP_201_CREATED)
             
