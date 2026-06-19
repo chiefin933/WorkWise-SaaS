@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { SignUp, useUser } from '@clerk/nextjs';
@@ -13,7 +13,7 @@ interface InviteInfo {
   company: string;
 }
 
-export default function AcceptInvitePage() {
+function AcceptInvitePageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isSignedIn } = useUser();
@@ -167,5 +167,17 @@ export default function AcceptInvitePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-teal-400 animate-spin" />
+      </div>
+    }>
+      <AcceptInvitePageInner />
+    </Suspense>
   );
 }
