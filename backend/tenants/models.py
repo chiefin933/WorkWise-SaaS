@@ -4,6 +4,8 @@ from django.utils import timezone
 from datetime import timedelta
 
 class Tenant(models.Model):
+    STATUS_ACTIVE = 'ACTIVE'
+
     PLAN_CHOICES = [
         ('STARTER', 'Starter Plan'),
         ('GROWTH', 'Growth Plan'),
@@ -13,7 +15,7 @@ class Tenant(models.Model):
     
     STATUS_CHOICES = [
         ('TRIAL', 'Trial'),
-        ('ACTIVE', 'Active'),
+        (STATUS_ACTIVE, 'Active'),
         ('PAST_DUE', 'Past Due'),
         ('SUSPENDED', 'Suspended'),
         ('CANCELLED', 'Cancelled'),
@@ -83,4 +85,3 @@ class MpesaSubscriptionPayment(models.Model):
 
     def __str__(self):
         return f"{self.tenant.name} - {self.plan} ({self.status})"
-

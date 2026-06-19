@@ -8,21 +8,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 
 from core.tenant_utils import tenant_required
+from core.permissions import IsAdmin
 from payroll.models import PayrollConfig
 from .models import Tenant, MpesaSubscriptionPayment
 from .serializers import TenantSerializer, PayrollConfigSerializer
 
 logger = logging.getLogger(__name__)
-
-
-class IsAdminUser(IsAuthenticated):
-    """Custom permission: the user must be authenticated AND have the ADMIN role."""
-
-    def has_permission(self, request, view):
-        return (
-            super().has_permission(request, view)
-            and getattr(request.user, 'role', None) == 'ADMIN'
-        )
 
 
 class CompanySettingsView(APIView):
@@ -36,8 +27,7 @@ class CompanySettingsView(APIView):
         return Response(TenantSerializer(tenant).data)
 
     def patch(self, request):
-        # Only company admins may change company settings
-        if request.user.role != 'ADMIN':
+        if not IsAdmin().has_permission(request, self):
             return Response(
                 {"error": "Only administrators can change company settings."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -62,8 +52,7 @@ class PayrollConfigView(APIView):
         return Response(PayrollConfigSerializer(config).data)
 
     def patch(self, request):
-        # Only company admins may change payroll configuration
-        if request.user.role != 'ADMIN':
+        if not IsAdmin().has_permission(request, self):
             return Response(
                 {"error": "Only administrators can change payroll configuration."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -79,15 +68,23 @@ class PayrollConfigView(APIView):
 
 
 class UpgradePlanView(APIView):
+    """
+    Staff-only endpoint to change a tenant's subscription plan.
+
+    This endpoint is intentionally restricted to Django staff users to prevent
+    tenants from self-upgrading without going through the M-Pesa payment flow.
+    Plan upgrades from billing page use MpesaExpressPushView instead.
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.role != 'ADMIN':
+        # Only Django staff (is_staff=True) may directly override a plan.
+        if not request.user.is_staff:
             return Response(
-                {"error": "Only administrators can upgrade plans."},
+                {"error": "Plan upgrades must go through the billing payment flow."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         tenant, err = tenant_required(request)
         if err:
             return err
@@ -105,7 +102,10 @@ class UpgradePlanView(APIView):
         tenant.plan = plan
         tenant.save()
 
-        # Update the logged in user's profile context if needed (handled by serializer)
+        logger.info(
+            "Staff user %s upgraded tenant %s plan from %s to %s.",
+            request.user.email, tenant.id, old_plan, plan
+        )
         return Response({
             "message": f"Plan successfully upgraded from {old_plan} to {plan}!",
             "plan": tenant.plan,
@@ -294,7 +294,7 @@ class MpesaExpressCallbackView(APIView):
                     tenant = payment.tenant
                     old_plan = tenant.plan
                     tenant.plan = payment.plan
-                    tenant.subscription_status = 'ACTIVE'
+                    tenant.subscription_status = Tenant.STATUS_ACTIVE
                     tenant.save()
 
                     logger.info(
@@ -320,4 +320,3 @@ class MpesaExpressCallbackView(APIView):
         except Exception as e:
             logger.error("Error processing M-Pesa STK Callback: %s", e)
             return Response({"ResultCode": 1, "ResultDesc": "Server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

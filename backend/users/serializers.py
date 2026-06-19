@@ -1,49 +1,5 @@
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework import serializers
-from .models import User
-from tenants.models import Tenant
-from payroll.models import PayrollConfig
-from django.db import transaction
-
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        token['tenant_id'] = str(user.tenant.id) if user.tenant else None
-        token['role'] = user.role
-        return token
-
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    company_name = serializers.CharField(write_only=True)
-    plan = serializers.CharField(write_only=True, required=False, default='STARTER')
-    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
-
-    class Meta:
-        model = User
-        fields = ('email', 'password', 'company_name', 'first_name', 'last_name', 'plan')
-
-    @transaction.atomic
-    def create(self, validated_data):
-        company_name = validated_data.pop('company_name')
-        plan = validated_data.pop('plan', 'STARTER')
-        password = validated_data.pop('password')
-        
-        # Create Tenant
-        tenant = Tenant.objects.create(name=company_name, plan=plan)
-        
-        # Create default Payroll Config for the new tenant
-        PayrollConfig.objects.create(tenant=tenant)
-        
-        # Create Admin User
-        user = User.objects.create_user(
-            email=validated_data['email'],
-            password=password,
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            tenant=tenant,
-            role='ADMIN'
-        )
-        return user
+from .models import User, Notification
 
 class UserSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField()
@@ -59,7 +15,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'email', 'first_name', 'last_name', 'role',
             'company_name', 'plan', 'subscription_status', 'max_employees',
-            'trial_ends_at', 'kra_pin', 'tenant_id',
+            'trial_ends_at', 'kra_pin', 'tenant_id', 'notification_preferences',
         )
         read_only_fields = ('id', 'email', 'role')
 
@@ -83,3 +39,14 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_trial_ends_at(self, obj):
         return obj.tenant.trial_ends_at if obj.tenant else None
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = (
+            'id', 'tenant', 'recipient', 'type', 'title',
+            'message', 'is_read', 'action_url', 'created_at'
+        )
+        read_only_fields = ('id', 'tenant', 'recipient', 'created_at')
+

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GlassCard } from '@/components/premium/GlassCard';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import type { TeamMember } from '@/lib/types';
 import { 
   Building, 
   Wallet, 
@@ -14,81 +17,244 @@ import {
   CheckCircle2,
   Lock,
   Zap,
-  Users
+  Users,
+  UserPlus,
+  Trash2,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('company');
   const [isSaving, setIsSaving] = useState(false);
   const user = useAuthStore((state) => state.user);
   const fetchUser = useAuthStore((state) => state.fetchUser);
+  const queryClient = useQueryClient();
 
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    kra_pin: '',
+    phone: '',
+    address: '',
+  });
+
+  const [payrollForm, setPayrollForm] = useState({
+    nssf_rate: '6',
+    nssf_cap: '4320',
+    shif_rate: '2.75',
+    shif_min: '300',
+    ahl_rate: '1.5',
+    personal_relief: '2400',
+  });
+
+  const { data: companyData, isLoading: isCompanyLoading } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: async () => {
+      const res = await api.get('/settings/company/');
+      return res.data;
+    },
+  });
+
+  const { data: payrollConfig, isLoading: isPayrollLoading } = useQuery({
+    queryKey: ['payroll-config'],
+    queryFn: async () => {
+      const res = await api.get('/settings/payroll/');
+      return res.data;
+    },
+  });
+
+  const { data: notificationPrefs, isLoading: isNotificationsLoading } = useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: async () => {
+      const res = await api.get('/settings/notifications/');
+      return res.data;
+    },
+  });
+
+  useEffect(() => {
+    if (companyData) {
+      setCompanyForm({
+        name: companyData.name || '',
+        kra_pin: companyData.kra_pin || '',
+        phone: companyData.phone || '',
+        address: companyData.address || '',
+      });
+    }
+  }, [companyData]);
+
+  useEffect(() => {
+    if (payrollConfig) {
+      setPayrollForm({
+        nssf_rate: String((parseFloat(payrollConfig.nssf_rate) * 100).toFixed(2)),
+        nssf_cap: String(parseFloat(payrollConfig.nssf_cap)),
+        shif_rate: String((parseFloat(payrollConfig.shif_rate) * 100).toFixed(2)),
+        shif_min: String(parseFloat(payrollConfig.shif_min)),
+        ahl_rate: String((parseFloat(payrollConfig.ahl_rate) * 100).toFixed(2)),
+        personal_relief: String(parseFloat(payrollConfig.personal_relief)),
+      });
+    }
+  }, [payrollConfig]);
+
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'HR' | 'EMPLOYEE'>('EMPLOYEE');
+  const [inviteError, setInviteError] = useState('');
+  const [inviteToast, setInviteToast] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const tabs = [
     { id: 'company', name: 'Company Profile', icon: Building },
     { id: 'billing', name: 'Billing & Plan', icon: CreditCard },
     { id: 'payroll', name: 'Payroll Config', icon: Wallet },
+    ...(user?.role === 'ADMIN' ? [{ id: 'team', name: 'Team Members', icon: Users }] : []),
     { id: 'security', name: 'Security & Access', icon: Shield },
     { id: 'notifications', name: 'Notifications', icon: Bell },
   ];
 
-  const plans = [
-    { id: 'STARTER', name: 'Starter', price: '3,500', limit: '15' },
-    { id: 'GROWTH', name: 'Growth', price: '12,000', limit: '75' },
-    { id: 'BUSINESS', name: 'Business', price: '35,000', limit: '300' },
-  ];
 
-  const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      alert('Settings saved successfully!');
-    }, 1000);
+
+  const { data: teamMembers, isLoading: isTeamLoading } = useQuery<TeamMember[]>({
+    queryKey: ['team-members'],
+    enabled: user?.role === 'ADMIN',
+    queryFn: async () => {
+      const res = await api.get<TeamMember[]>('/users/team/');
+      return res.data;
+    },
+  });
+
+  const showInviteToast = (message: string) => {
+    setInviteToast(message);
+    setTimeout(() => setInviteToast(''), 4000);
   };
 
-  const handleUpgrade = async () => {
-    const targetPlan = selectedPlan;
-    if (!targetPlan) {
-      alert('Please select a plan from the list below to upgrade.');
-      return;
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      if (activeTab === 'company') {
+        if (user?.role !== 'ADMIN') {
+          alert('Only administrators can change company settings.');
+          return;
+        }
+        await api.patch('/settings/company/', companyForm);
+        await queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+        await fetchUser();
+      } else if (activeTab === 'payroll') {
+        if (user?.role !== 'ADMIN') {
+          alert('Only administrators can change payroll config.');
+          return;
+        }
+        const payload = {
+          nssf_rate: parseFloat(payrollForm.nssf_rate) / 100,
+          nssf_cap: parseFloat(payrollForm.nssf_cap),
+          shif_rate: parseFloat(payrollForm.shif_rate) / 100,
+          shif_min: parseFloat(payrollForm.shif_min),
+          ahl_rate: parseFloat(payrollForm.ahl_rate) / 100,
+          personal_relief: parseFloat(payrollForm.personal_relief),
+        };
+        await api.patch('/settings/payroll/', payload);
+        await queryClient.invalidateQueries({ queryKey: ['payroll-config'] });
+      }
+      alert('Settings saved successfully!');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      alert(error.response?.data?.error || 'Failed to save settings.');
+    } finally {
+      setIsSaving(false);
     }
-    if (targetPlan === user?.plan) {
-      alert('You are already on the selected plan!');
+  };
+
+
+
+  const handleInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setInviteError('');
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) {
+      setInviteError('Enter an email address to invite.');
       return;
     }
 
-    setIsUpgrading(true);
+    setIsInviting(true);
     try {
-      const res = await api.post('/settings/company/upgrade-plan/', { plan: targetPlan });
-      alert(res.data.message || 'Plan successfully upgraded!');
-      await fetchUser();
-      setSelectedPlan(null);
+      await api.post('/users/invite/', { email, role: inviteRole });
+      setInviteEmail('');
+      setInviteRole('EMPLOYEE');
+      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      showInviteToast(`Invite sent to ${email}`);
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { error?: string } } };
-      alert(error.response?.data?.error || 'Failed to upgrade plan.');
+      const error = err as { response?: { data?: { error?: string; detail?: string } } };
+      setInviteError(error.response?.data?.error || error.response?.data?.detail || 'Could not send invite.');
     } finally {
-      setIsUpgrading(false);
+      setIsInviting(false);
     }
+  };
+
+  const handleRevoke = async (member: TeamMember) => {
+    setRevokingId(member.id);
+    setInviteError('');
+    try {
+      await api.delete(`/users/invite/${member.id}/`);
+      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string; detail?: string } } };
+      setInviteError(error.response?.data?.error || error.response?.data?.detail || 'Could not revoke invite.');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const roleBadgeClass = (role: TeamMember['role']) => {
+    if (role === 'ADMIN') return 'bg-slate-100 text-slate-700 border-slate-300';
+    if (role === 'HR') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    return 'bg-blue-50 text-blue-700 border-blue-200';
+  };
+
+  const roleLabel = (role: TeamMember['role']) => {
+    if (role === 'ADMIN') return 'Admin';
+    if (role === 'HR') return 'HR Manager';
+    return 'Employee';
+  };
+
+  const memberName = (member: TeamMember) => {
+    const fullName = `${member.first_name ?? ''} ${member.last_name ?? ''}`.trim();
+    return fullName || member.email;
+  };
+
+  const memberInitials = (member: TeamMember) => {
+    const name = memberName(member);
+    return name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase();
   };
 
   return (
     <div className="space-y-8">
+      {inviteToast && (
+        <div className="fixed bottom-6 right-6 z-[100] rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-2xl">
+          {inviteToast}
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-4xl font-bold text-slate-900 dark:text-white font-outfit mb-2">Platform Settings</h1>
           <p className="text-slate-500 dark:text-slate-400">Configure your workspace and global preferences.</p>
         </div>
-        <Button 
-          onClick={handleSave}
-          disabled={isSaving}
-          className="bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-105 dark:text-slate-950 text-white gap-2 px-8 py-6 rounded-2xl transition-all shadow-sm font-bold"
-        >
-          {isSaving ? 'Saving...' : <><Save className="h-5 w-5" /> Save Changes</>}
-        </Button>
+        {(activeTab === 'company' || activeTab === 'payroll') && (
+          <Button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-105 dark:text-slate-950 text-white gap-2 px-8 py-6 rounded-2xl transition-all shadow-sm font-bold"
+          >
+            {isSaving ? 'Saving...' : <><Save className="h-5 w-5" /> Save Changes</>}
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -98,7 +264,13 @@ export default function SettingsPage() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    if (tab.id === 'billing') {
+                      router.push('/settings/billing');
+                    } else {
+                      setActiveTab(tab.id);
+                    }
+                  }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                     activeTab === tab.id 
                       ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950 shadow-sm' 
@@ -118,113 +290,252 @@ export default function SettingsPage() {
             {activeTab === 'company' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Company Profile</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Legal Name</label>
-                      <input type="text" defaultValue={user?.company_name || "Crystal Gen Ltd"} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">KRA PIN</label>
-                      <input type="text" placeholder="P051XXXXXX" className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" />
-                   </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'billing' && (
-              <div className="space-y-8">
-                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl bg-slate-950 dark:bg-slate-900 text-white border border-slate-850 relative overflow-hidden">
-                    <div className="relative z-10">
-                       <div className="flex items-center gap-2 mb-2">
-                          <Zap className="h-4 w-4 text-slate-400" />
-                          <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Current Plan</span>
-                       </div>
-                       <h3 className="text-3xl font-bold font-outfit mb-2">{user?.plan} PLAN</h3>
-                       <div className="flex items-center gap-4 text-sm text-slate-400 font-medium">
-                          <div className="flex items-center gap-1.5">
-                             <Users className="h-4 w-4" /> {user?.max_employees} Max Employees
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                             <CheckCircle2 className="h-4 w-4" /> {user?.subscription_status}
-                          </div>
-                       </div>
-                    </div>
-                    <Button 
-                      onClick={handleUpgrade}
-                      disabled={isUpgrading || !selectedPlan || selectedPlan === user?.plan}
-                      className="bg-white text-slate-950 hover:bg-slate-100 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 font-bold px-8 py-6 rounded-2xl relative z-10 shadow-sm disabled:bg-slate-800/40 disabled:text-slate-500"
-                    >
-                       {isUpgrading ? 'Upgrading...' : selectedPlan ? `Upgrade to ${plans.find(pl => pl.id === selectedPlan)?.name}` : 'Select a Plan Below'}
-                    </Button>
-                    <div className="absolute -bottom-10 -right-10 h-40 w-40 bg-slate-800/10 rounded-full blur-2xl" />
-                 </div>
-
-                <div className="space-y-6">
-                   <h4 className="text-lg font-bold text-slate-900 dark:text-white font-outfit">Plan Overview</h4>
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                       {plans.map((p) => {
-                          const isCurrent = user?.plan === p.id;
-                          const isSelected = selectedPlan === p.id;
-                          return (
-                             <div 
-                               key={p.id} 
-                               onClick={() => {
-                                  if (!isCurrent) {
-                                     setSelectedPlan(p.id);
-                                  }
-                               }}
-                               className={`p-5 rounded-2xl border-2 transition-all select-none ${
-                                  isCurrent 
-                                    ? 'border-slate-950 dark:border-white bg-slate-50 dark:bg-slate-900 cursor-default opacity-85' 
-                                    : isSelected
-                                      ? 'border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 cursor-pointer shadow-md ring-2 ring-slate-950/20 scale-[1.02]'
-                                      : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer hover:shadow-sm'
-                               }`}
-                             >
-                                <div className="flex justify-between items-start mb-1">
-                                   <div className="text-sm font-bold text-slate-900 dark:text-white">{p.name}</div>
-                                   {isCurrent && (
-                                      <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-950 text-white dark:bg-white dark:text-slate-950 border border-slate-950 dark:border-white tracking-wider">Active</span>
-                                   )}
-                                   {isSelected && (
-                                      <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-350 dark:bg-slate-900 dark:text-slate-250 dark:border-slate-800 tracking-wider">Selected</span>
-                                   )}
-                                </div>
-                                <div className="text-xl font-black text-slate-900 dark:text-white">KES {p.price}</div>
-                                <div className="text-[10px] text-slate-500 uppercase tracking-widest mt-2">Up to {p.limit} Employees</div>
-                             </div>
-                          );
-                       })}
-                   </div>
-                </div>
-
-                 {user?.subscription_status === 'TRIAL' && (
-                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-4">
-                       <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex items-center justify-center text-slate-950 dark:text-white shadow-sm">
-                          <Calendar className="h-5 w-5" />
-                       </div>
-                       <div>
-                          <div className="text-sm font-bold text-slate-950 dark:text-white">Your free trial is active.</div>
-                          <div className="text-xs text-slate-500">Expires on {user?.trial_ends_at ? new Date(user.trial_ends_at).toLocaleDateString() : 'N/A'}. Add a payment method to avoid interruption.</div>
-                       </div>
-                    </div>
-                 )}
+                {isCompanyLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Legal Name</label>
+                        <input 
+                          type="text" 
+                          value={companyForm.name} 
+                          onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                          disabled={user?.role !== 'ADMIN'}
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">KRA PIN</label>
+                        <input 
+                          type="text" 
+                          placeholder="P051XXXXXX" 
+                          value={companyForm.kra_pin} 
+                          onChange={(e) => setCompanyForm({ ...companyForm, kra_pin: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                          disabled={user?.role !== 'ADMIN'}
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Phone</label>
+                        <input 
+                          type="text" 
+                          placeholder="+254 700 000 000" 
+                          value={companyForm.phone} 
+                          onChange={(e) => setCompanyForm({ ...companyForm, phone: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                          disabled={user?.role !== 'ADMIN'}
+                        />
+                     </div>
+                     <div className="space-y-2 md:col-span-2">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Address</label>
+                        <textarea 
+                          placeholder="P.O. Box 12345, Nairobi" 
+                          value={companyForm.address} 
+                          onChange={(e) => setCompanyForm({ ...companyForm, address: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none resize-none h-24" 
+                          disabled={user?.role !== 'ADMIN'}
+                        />
+                     </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'payroll' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Payroll Configuration</h3>
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
-                      <div>
-                         <div className="font-bold text-slate-900 dark:text-white">Auto-Calculate NHIF/SHIF</div>
-                         <div className="text-xs text-slate-500">Enable automatic statutory deduction based on latest KRA guidelines.</div>
-                      </div>
-                      <div className="h-6 w-11 bg-slate-950 dark:bg-white rounded-full relative">
-                         <div className="absolute right-1 top-1 h-4 w-4 bg-white dark:bg-slate-950 rounded-full shadow-sm" />
-                      </div>
-                   </div>
+                {isPayrollLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Rate (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={payrollForm.nssf_rate} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, nssf_rate: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Cap (KES)</label>
+                      <input 
+                        type="number" 
+                        value={payrollForm.nssf_cap} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, nssf_cap: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Rate (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={payrollForm.shif_rate} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, shif_rate: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Minimum (KES)</label>
+                      <input 
+                        type="number" 
+                        value={payrollForm.shif_min} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, shif_min: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">AHL Rate (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={payrollForm.ahl_rate} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, ahl_rate: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Personal Relief (KES)</label>
+                      <input 
+                        type="number" 
+                        value={payrollForm.personal_relief} 
+                        onChange={(e) => setPayrollForm({ ...payrollForm, personal_relief: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
+                        disabled={user?.role !== 'ADMIN'}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'team' && user?.role === 'ADMIN' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit">Team Members</h3>
+                  <p className="mt-1 text-sm text-slate-500">Invite HR managers and employees into your workspace.</p>
+                </div>
+
+                <form
+                  onSubmit={handleInvite}
+                  className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_180px_auto] dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    placeholder="colleague@company.co.ke"
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                  />
+                  <select
+                    value={inviteRole}
+                    onChange={(event) => setInviteRole(event.target.value as 'HR' | 'EMPLOYEE')}
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                  >
+                    <option value="HR">HR Manager</option>
+                    <option value="EMPLOYEE">Employee</option>
+                  </select>
+                  <Button
+                    type="submit"
+                    disabled={isInviting}
+                    className="h-11 rounded-xl bg-slate-950 px-5 font-bold text-white hover:bg-slate-900"
+                  >
+                    {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4" /> Send Invite</>}
+                  </Button>
+                </form>
+
+                {inviteError && (
+                  <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                    <AlertCircle className="h-4 w-4" /> {inviteError}
+                  </div>
+                )}
+
+                <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 dark:bg-slate-900/60">
+                        <tr>
+                          <th className="px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Member</th>
+                          <th className="px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Role</th>
+                          <th className="px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Status</th>
+                          <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-widest text-slate-400">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {isTeamLoading ? (
+                          [...Array(3)].map((_, index) => (
+                            <tr key={index} className="animate-pulse">
+                              <td colSpan={4} className="px-5 py-5">
+                                <div className="h-10 rounded-xl bg-slate-100 dark:bg-slate-800" />
+                              </td>
+                            </tr>
+                          ))
+                        ) : (teamMembers ?? []).length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-5 py-12 text-center text-sm text-slate-500">
+                              No team members found.
+                            </td>
+                          </tr>
+                        ) : (
+                          (teamMembers ?? []).map((member) => (
+                            <tr key={member.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-black text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                    {memberInitials(member)}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-bold text-slate-900 dark:text-white">{memberName(member)}</div>
+                                    <div className="truncate text-xs text-slate-400">{member.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${roleBadgeClass(member.role)}`}>
+                                  {roleLabel(member.role)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4">
+                                {member.invite_pending ? (
+                                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
+                                    Invite Pending
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                    Active
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                {member.invite_pending ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevoke(member)}
+                                    disabled={revokingId === member.id}
+                                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    {revokingId === member.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                    Revoke
+                                  </button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -246,10 +557,56 @@ export default function SettingsPage() {
             )}
 
             {activeTab === 'notifications' && (
-              <div className="space-y-6 text-center py-12">
-                 <Bell className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                 <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit">Notification Preferences</h3>
-                 <p className="text-slate-500 max-w-sm mx-auto">Configure how you receive alerts for payroll runs, leave requests, and system updates.</p>
+              <div className="space-y-6">
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Notification Preferences</h3>
+                 {isNotificationsLoading ? (
+                   <div className="flex justify-center items-center py-12">
+                     <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+                   </div>
+                 ) : (
+                   <div className="space-y-4">
+                      {[
+                         { key: 'payroll_run', title: 'Payroll Run Processed', desc: 'Receive email notification when a payroll run status is changed to paid.' },
+                         { key: 'leave_status', title: 'Leave Request Approved/Rejected', desc: 'Receive email notification when your leave request is updated.' },
+                         { key: 'new_member', title: 'New Team Member Joined', desc: 'Get notified when a new employee accepts their workspace invitation.' },
+                         { key: 'trial_expiry', title: 'Trial Expiry Warning', desc: 'Receive warnings about workspace trial duration and payment status.' },
+                      ].map((pref) => {
+                         const isEnabled = (notificationPrefs as Record<string, boolean>)?.[pref.key] !== false; // default to true
+                         return (
+                            <div key={pref.key} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+                               <div className="text-left">
+                                  <div className="font-bold text-slate-900 dark:text-white">{pref.title}</div>
+                                  <div className="text-xs text-slate-500">{pref.desc}</div>
+                               </div>
+                               <button
+                                  onClick={async () => {
+                                     const currentPrefs = (notificationPrefs as Record<string, boolean>) || {};
+                                     const newPrefs = {
+                                        ...currentPrefs,
+                                        [pref.key]: !isEnabled,
+                                     };
+                                     try {
+                                        await api.patch('/settings/notifications/', newPrefs);
+                                        queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
+                                        await fetchUser();
+                                     } catch (err) {
+                                        console.error('Failed to update notification preferences:', err);
+                                        alert('Failed to update preferences.');
+                                     }
+                                  }}
+                                  className={`w-11 h-6 rounded-full relative transition-colors duration-200 ${
+                                     isEnabled ? 'bg-slate-950 dark:bg-white' : 'bg-slate-200 dark:bg-slate-700'
+                                  }`}
+                                >
+                                  <div className={`absolute top-1 h-4 w-4 bg-white dark:bg-slate-950 rounded-full shadow-sm transition-all duration-200 ${
+                                     isEnabled ? 'right-1' : 'left-1'
+                                  }`} />
+                               </button>
+                            </div>
+                         );
+                      })}
+                   </div>
+                 )}
               </div>
             )}
           </GlassCard>
@@ -259,10 +616,3 @@ export default function SettingsPage() {
   );
 }
 
-function Calendar({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}

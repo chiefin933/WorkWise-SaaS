@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "@/components/providers";
 import AppLayout from "@/components/layout/AppLayout";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Workwise HR SaaS",
@@ -20,9 +21,11 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
-        <Providers>
-          <AppLayout>{children}</AppLayout>
-        </Providers>
+        <ErrorBoundary>
+          <Providers>
+            <AppLayout>{children}</AppLayout>
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );

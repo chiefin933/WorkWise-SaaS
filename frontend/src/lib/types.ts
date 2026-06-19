@@ -1,5 +1,5 @@
 export interface Employee {
-  id: string | number;
+  id: string;
   name: string;
   email?: string;
   phone?: string;
@@ -13,11 +13,12 @@ export interface Employee {
 }
 
 export interface AttendanceLog {
-  id: string | number;
+  id: string;
   employee_name?: string;
   date: string;
   clock_in: string;
   clock_out?: string | null;
+  location?: string;
   hours_worked?: string | number;
   overtime_hours?: string | number;
 }
@@ -32,7 +33,7 @@ export interface AttendanceStats {
 }
 
 export interface LeaveRequest {
-  id: string | number;
+  id: string;
   employee_name?: string;
   leave_type?: string;
   start_date: string;
@@ -54,9 +55,9 @@ export interface LeaveStats {
 }
 
 export interface PayrollItem {
-  id: string | number;
-  payroll_run: string | number;
-  employee: string | number;
+  id: string;
+  payroll_run: string;
+  employee: string;
   employee_name: string;
   payment_method: 'mpesa' | 'bank';
   mpesa_number?: string;
@@ -69,7 +70,7 @@ export interface PayrollItem {
 }
 
 export interface PayrollRun {
-  id: string | number;
+  id: string;
   month: number;
   year: number;
   item_count: number;
@@ -134,6 +135,16 @@ export interface PayrollConfig {
   paye_bands: Array<{ limit: number; rate: number }>;
 }
 
+export interface TeamMember {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  role: 'ADMIN' | 'HR' | 'EMPLOYEE';
+  is_active: boolean;
+  invite_pending: boolean;
+}
+
 export interface ApiErrorResponse {
   message?: string;
   non_field_errors?: string[];
@@ -154,4 +165,5 @@ export interface AuthUser {
   trial_ends_at?: string;
   kra_pin?: string;
   tenant_id?: string;
+  notification_preferences?: Record<string, boolean>;
 }

@@ -1,8 +1,71 @@
+import uuid
 import logging
 from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 logger = logging.getLogger(__name__)
+
+# Thread-local storage for the request-scoped fields injected into every log record.
+import threading
+_request_context = threading.local()
+
+
+def get_request_id() -> str:
+    """Return the current request's ID, or an empty string outside request context."""
+    return getattr(_request_context, 'request_id', '')
+
+
+def get_request_tenant_id() -> str:
+    return getattr(_request_context, 'tenant_id', '')
+
+
+def get_request_user_id() -> str:
+    return getattr(_request_context, 'user_id', '')
+
+
+class RequestIDMiddleware:
+    """
+    Assigns a UUID X-Request-ID to every inbound request and echoes it back
+    in the response header.  The ID is stored in thread-local storage so it
+    can be injected into every log record via WorkwiseJsonFormatter without
+    passing the request object around.
+
+    Position: must come *before* TenantMiddleware in MIDDLEWARE so that the
+    request_id is available during tenant resolution logs.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Honour a forwarded request ID (e.g. from an upstream load-balancer)
+        request_id = (
+            request.META.get('HTTP_X_REQUEST_ID')
+            or str(uuid.uuid4())
+        )
+        request.request_id = request_id
+        _request_context.request_id = request_id
+        _request_context.tenant_id = ''
+        _request_context.user_id = ''
+
+        response = self.get_response(request)
+
+        # Inject resolved context after DRF authentication has run
+        if hasattr(request, 'user') and request.user and request.user.is_authenticated:
+            _request_context.user_id = str(getattr(request.user, 'pk', ''))
+            tenant = getattr(request.user, 'tenant', None)
+            if tenant:
+                _request_context.tenant_id = str(getattr(tenant, 'id', ''))
+
+        response['X-Request-ID'] = request_id
+
+        # Clean up thread-local to avoid leaking into the next request
+        # on a reused thread (Gunicorn worker pool).
+        _request_context.request_id = ''
+        _request_context.tenant_id = ''
+        _request_context.user_id = ''
+
+        return response
 
 
 class TenantMiddleware:

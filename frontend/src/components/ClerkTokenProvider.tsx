@@ -7,24 +7,27 @@ import { useAuthStore } from '@/lib/store';
 
 /**
  * Wires Clerk session tokens to Axios and loads the Django user profile.
+ * Sets isLoading=true immediately when Clerk reports the user as signed-in,
+ * closing the race-condition window where isLoading was false but user was null.
  */
 export function ClerkTokenProvider() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
-  const fetchUser = useAuthStore((s) => s.fetchUser);
-  const clearUser = useAuthStore((s) => s.clearUser);
-
-  useEffect(() => {
-    setTokenGetter(() => getToken());
-  }, [getToken]);
 
   useEffect(() => {
     if (!isLoaded) return;
+
     if (isSignedIn) {
-      fetchUser();
+      setTokenGetter(() => getToken());
+
+      const { hasFetched, isLoading, fetchUser } = useAuthStore.getState();
+      // Only fetch once — prevents duplicate calls on hot-reload / re-renders
+      if (!hasFetched && !isLoading) {
+        void fetchUser();
+      }
     } else {
-      clearUser();
+      useAuthStore.getState().clearUser();
     }
-  }, [isLoaded, isSignedIn, fetchUser, clearUser]);
+  }, [getToken, isLoaded, isSignedIn]);
 
   return null;
 }

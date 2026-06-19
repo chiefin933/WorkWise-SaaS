@@ -1,3 +1,6 @@
+import math
+import logging
+
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
@@ -10,12 +13,46 @@ from employees.models import Employee
 from leave.models import Leave
 from core.permissions import IsHROrAdmin
 
+logger = logging.getLogger(__name__)
+
+
+def _haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return the great-circle distance in metres between two GPS coordinates."""
+    R = 6_371_000  # Earth radius in metres
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
 
 def _requesting_employee_for_user(user):
     try:
         return Employee.objects.get(tenant=user.tenant, email=getattr(user, 'email', None))
     except Employee.DoesNotExist:
         return None
+
+
+def _check_geofence(tenant, lat, lon):
+    """
+    If the tenant's PayrollConfig defines office coordinates and a geofence
+    radius, validate that the supplied coordinates are within range.
+
+    Returns (within: bool, distance_m: float | None, radius_m: float | None).
+    Returns (True, None, None) when geofencing is not configured — never blocks.
+    """
+    try:
+        config = tenant.payroll_config
+        office_lat = float(config.office_latitude or 0)
+        office_lon = float(config.office_longitude or 0)
+        radius     = float(config.geofence_radius_meters or 0)
+        if not office_lat or not office_lon or not radius:
+            return True, None, None
+        distance = _haversine_meters(lat, lon, office_lat, office_lon)
+        return distance <= radius, round(distance), round(radius)
+    except Exception:
+        # Geofence config absent or any error → non-blocking
+        return True, None, None
 
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -100,14 +137,36 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
         
         today = timezone.now().date()
+        lat = request.data.get('latitude')
+        lon = request.data.get('longitude')
+
+        # Geofence validation — warning only, never blocks clock-in
+        geofence_warning = None
+        if lat is not None and lon is not None:
+            try:
+                within, distance_m, radius_m = _check_geofence(
+                    request.user.tenant, float(lat), float(lon)
+                )
+                if radius_m is not None and not within:
+                    geofence_warning = (
+                        f"You are {distance_m}m from the office "
+                        f"(geofence radius: {radius_m}m). Clock-in recorded but flagged."
+                    )
+                    logger.warning(
+                        "Geofence breach: employee=%s distance=%dm radius=%dm",
+                        employee.name, distance_m, radius_m,
+                    )
+            except (TypeError, ValueError):
+                pass
+
         attendance, created = Attendance.objects.get_or_create(
             employee=employee,
             date=today,
             defaults={
                 'clock_in': timezone.now().time(),
                 'location': request.data.get('location', 'Office'),
-                'latitude': request.data.get('latitude'),
-                'longitude': request.data.get('longitude'),
+                'latitude': lat,
+                'longitude': lon,
             }
         )
         
@@ -116,11 +175,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 return Response({"error": "Already clocked in today"}, status=status.HTTP_400_BAD_REQUEST)
             attendance.clock_in = timezone.now().time()
             attendance.location = request.data.get('location', 'Office')
-            attendance.latitude = request.data.get('latitude')
-            attendance.longitude = request.data.get('longitude')
+            attendance.latitude = lat
+            attendance.longitude = lon
             attendance.save()
-            
-        return Response(AttendanceSerializer(attendance).data, status=status.HTTP_200_OK)
+
+        response_data = AttendanceSerializer(attendance).data
+        if geofence_warning:
+            response_data['geofence_warning'] = geofence_warning
+        return Response(response_data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='clock-out')
     def clock_out(self, request):

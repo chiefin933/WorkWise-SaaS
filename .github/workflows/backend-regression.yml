@@ -8,6 +8,7 @@ on:
       - master
 
 jobs:
+  # ── Backend: tests + coverage + security scan ──────────────────────────────
   backend-regression:
     runs-on: ubuntu-latest
 
@@ -19,11 +20,13 @@ jobs:
       DATABASE_URL: ""
       DB_HOST: ""
       DJANGO_DEBUG: "True"
-      DJANGO_SECRET_KEY: ci-test-secret
+      DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
       CLERK_AUDIENCE: api://workwise
       CLERK_ALLOWED_ISSUERS: https://clerk.example
       CLERK_JWKS_URL: https://clerk.example/.well-known/jwks.json
       MPESA_ENABLED: "False"
+      # Required by settings.py field-encryption guard
+      MASTER_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
     steps:
       - name: Check out repository
@@ -41,9 +44,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run critical regression tests
+      - name: Run tests with coverage
         run: |
-          python manage.py test \
+          coverage run --source='.' manage.py test \
             core.tests \
             core.tests_authentication \
             core.test_jwks_integration \
@@ -52,3 +55,43 @@ jobs:
             payroll.tests_mpesa_b2c \
             payroll.tests_mpesa \
             tenants.tests
+          coverage report --show-missing
+          coverage report --fail-under=50
+
+      - name: Upload coverage report
+        if: always()
+        run: coverage xml -o coverage.xml
+
+      - name: Run Bandit security scan
+        # -ll = report only MEDIUM and HIGH severity findings
+        # -x  = exclude venv and migration files (auto-generated, not our code)
+        run: |
+          bandit -r . -ll \
+            --exclude ./.venv,./*/migrations,./*/tests.py,./*/tests_*.py
+
+  # ── Frontend: audit for known vulnerable packages ─────────────────────────
+  frontend-audit:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline
+
+      - name: Audit for high-severity vulnerabilities
+        # --audit-level=high exits non-zero only for HIGH/CRITICAL — ignores
+        # low/moderate warnings that are typically in dev-only tooling.
+        run: npm audit --audit-level=high

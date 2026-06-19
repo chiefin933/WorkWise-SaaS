@@ -13,7 +13,7 @@ const ContentSecurityPolicy = `
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com;
   img-src 'self' data: blob: https:;
-  connect-src 'self' http://localhost:8000 https://*.clerk.accounts.dev https://clerk.accounts.dev;
+  connect-src 'self' http://localhost:8000 https://api.workwise.co.ke https://*.clerk.accounts.dev https://clerk.accounts.dev https://*.clerk.dev;
   frame-ancestors 'none';
   base-uri 'self';
   form-action 'self';
@@ -45,11 +45,11 @@ const securityHeaders = [
     key: 'Referrer-Policy',
     value: 'strict-origin-when-cross-origin',
   },
-  // Only enable HSTS when behind TLS in production. Remove for local dev.
-  // {
-  //   key: 'Strict-Transport-Security',
-  //   value: 'max-age=31536000; includeSubDomains; preload',
-  // },
+  // Only enable HSTS when behind TLS in production.
+  {
+    key: 'Strict-Transport-Security',
+    value: 'max-age=31536000; includeSubDomains; preload',
+  },
   {
     // Restrict browser features that the app doesn't need
     key: 'Permissions-Policy',

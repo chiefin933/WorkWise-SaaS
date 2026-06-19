@@ -1,12 +1,13 @@
 from datetime import date, timedelta
 from decimal import Decimal
+import calendar as _cal
 
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from core.permissions import IsHROrAdmin
+from core.permissions import IsHROrAdmin, IsAdmin
 
 from employees.models import Employee
 from leave.models import Leave
@@ -17,7 +18,7 @@ from .tenant_utils import tenant_required
 
 
 class DashboardStatsView(APIView):
-    permission_classes = (IsAuthenticated, IsHROrAdmin)
+    permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         tenant, err = tenant_required(request)
@@ -26,6 +27,52 @@ class DashboardStatsView(APIView):
 
         today = timezone.now().date()
         month, year = today.month, today.year
+
+        if request.user.role == 'EMPLOYEE':
+            employee = Employee.objects.filter(
+                tenant=tenant,
+                email=request.user.email,
+            ).first()
+
+            if employee:
+                own_logs_this_month = Attendance.objects.filter(
+                    employee=employee,
+                    date__month=month,
+                    date__year=year,
+                ).count()
+                attendance_rate = min(100, round((own_logs_this_month / 22) * 100))
+                pending_leaves = Leave.objects.filter(
+                    employee=employee,
+                    status='pending',
+                ).count()
+                recent_activities = [
+                    {
+                        'title': f'{leave.get_leave_type_display()} request',
+                        'description': leave.get_status_display(),
+                        'time': leave.created_at.isoformat(),
+                    }
+                    for leave in Leave.objects.filter(employee=employee).order_by('-created_at')[:5]
+                ]
+            else:
+                attendance_rate = 0
+                pending_leaves = 0
+                recent_activities = []
+
+            return Response({
+                'total_employees': 0,
+                'monthly_payroll_cost': 0,
+                'pending_leaves': pending_leaves,
+                'alerts': 0,
+                'attendance_rate': attendance_rate,
+                'leave_utilization': 0,
+                'suggestion': 'Track your attendance, leave requests, and payslips from your employee portal.',
+                'recent_activities': recent_activities,
+                'company_name': None,
+                'monthly_trends': [],
+                'department_costs': [],
+                'leave_distribution': [],
+                'headcount_growth': [],
+            })
 
         total_employees = Employee.objects.filter(tenant=tenant, status='active').count()
         pending_leaves = Leave.objects.filter(
@@ -96,7 +143,7 @@ class DashboardStatsView(APIView):
         elif not PayrollRun.objects.filter(tenant=tenant, month=month, year=year).exists():
             suggestion = f'Create the {today.strftime("%B")} payroll run to process salaries.'
 
-        # 1. Monthly Trends (last 6 months)
+        # 1. Monthly Trends (last 6 months: payroll cost + headcount)
         monthly_trends = []
         for i in range(5, -1, -1):
             m = today.month - i
@@ -104,11 +151,11 @@ class DashboardStatsView(APIView):
             while m <= 0:
                 m += 12
                 y -= 1
-            
+
             run = PayrollRun.objects.filter(
                 tenant=tenant, month=m, year=y, status__in=['processed', 'approved', 'paid']
             ).first()
-            
+
             run_cost = Decimal('0')
             run_employees = 0
             if run:
@@ -116,12 +163,12 @@ class DashboardStatsView(APIView):
                     payroll_run=run
                 ).aggregate(total=Sum('net_pay'))['total'] or Decimal('0')
                 run_employees = PayrollItem.objects.filter(payroll_run=run).count()
-            
+
             month_label = date(y, m, 1).strftime("%b %Y")
             monthly_trends.append({
                 'month': month_label,
                 'cost': float(run_cost),
-                'employees': run_employees
+                'employees': run_employees,
             })
 
         # 2. Department Costs Distribution (Active employees basic + allowances)
@@ -163,14 +210,34 @@ class DashboardStatsView(APIView):
             ltype = lv.leave_type or "annual"
             days = (lv.end_date - lv.start_date).days + 1
             leave_map[ltype] = leave_map.get(ltype, 0) + days
-            
+
         leave_distribution = [
             {
                 'leave_type': ltype,
-                'days': days
+                'days': days,
             }
             for ltype, days in leave_map.items()
         ]
+
+        # 4. Headcount Growth (employees hired per month, last 6 months)
+        headcount_growth = []
+        for i in range(5, -1, -1):
+            m = today.month - i
+            y = today.year
+            while m <= 0:
+                m += 12
+                y -= 1
+            period_start = date(y, m, 1)
+            period_end = date(y, m, _cal.monthrange(y, m)[1])
+            hired = Employee.objects.filter(
+                tenant=tenant,
+                hire_date__gte=period_start,
+                hire_date__lte=period_end,
+            ).count()
+            headcount_growth.append({
+                'month': date(y, m, 1).strftime('%b %Y'),
+                'hired': hired,
+            })
 
         return Response({
             'total_employees': total_employees,
@@ -185,6 +252,7 @@ class DashboardStatsView(APIView):
             'monthly_trends': monthly_trends,
             'department_costs': department_costs,
             'leave_distribution': leave_distribution,
+            'headcount_growth': headcount_growth,
         })
 
 
@@ -193,12 +261,14 @@ class AuditTrailView(APIView):
     GET /api/audit-trail/
     Returns the 200 most-recent audit log entries for the requesting tenant.
 
+    Restricted to ADMIN role only — HR managers do not have access.
+
     Query params:
-        action   – filter by AuditAction (e.g. CREATE, PAYROLL_RUN)
+        action   – filter by AuditAction (e.g. LOGIN, CREATE, PAYROLL_RUN)
         resource – filter by resource_type (e.g. Employee, PayrollRun)
         limit    – max rows (default 100, max 500)
     """
-    permission_classes = (IsAuthenticated, IsHROrAdmin)
+    permission_classes = (IsAuthenticated, IsAdmin)
 
     def get(self, request):
         tenant, err = tenant_required(request)
@@ -221,8 +291,14 @@ class AuditTrailView(APIView):
 
         entries = qs[:limit]
 
-        data = [
-            {
+        data = []
+        for entry in entries:
+            # Extract location and role from the payload 'after' dict for LOGIN events
+            after = entry.payload.get('after', {}) if isinstance(entry.payload, dict) else {}
+            location = after.get('location', '') if entry.action == 'LOGIN' else ''
+            role     = after.get('role', '')     if entry.action == 'LOGIN' else ''
+
+            data.append({
                 'id':            str(entry.pk),
                 'timestamp':     entry.timestamp.isoformat(),
                 'action':        entry.action,
@@ -230,8 +306,8 @@ class AuditTrailView(APIView):
                 'resource_type': entry.resource_type,
                 'resource_id':   entry.resource_id,
                 'ip_address':    entry.ip_address,
-            }
-            for entry in entries
-        ]
-        return Response({'audit_logs': data, 'count': len(data)})
+                'location':      location,
+                'role':          role,
+            })
 
+        return Response({'audit_logs': data, 'count': len(data)})

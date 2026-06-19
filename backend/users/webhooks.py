@@ -91,6 +91,31 @@ class ClerkWebhookView(APIView):
             logger.info(f"User with clerk_id {clerk_id} already exists, skipping creation.")
             return Response({"status": "exists"}, status=status.HTTP_200_OK)
 
+        pending_invite = User.objects.filter(
+            email__iexact=email,
+            clerk_id__isnull=True,
+            is_active=False,
+        ).first()
+        if pending_invite:
+            pending_invite.clerk_id = clerk_id
+            pending_invite.first_name = first_name
+            pending_invite.last_name = last_name
+            pending_invite.is_active = True
+            pending_invite.invite_token = None
+            pending_invite.save(update_fields=[
+                'clerk_id',
+                'first_name',
+                'last_name',
+                'is_active',
+                'invite_token',
+            ])
+            logger.info(
+                "Linked invited user %s to existing tenant %s.",
+                pending_invite.email,
+                pending_invite.tenant_id,
+            )
+            return Response({"status": "invited user linked"}, status=status.HTTP_200_OK)
+
         # Read plan and company name from Clerk unsafeMetadata (set by custom registration form)
         unsafe_meta = data.get("unsafe_metadata", {})
         plan = (unsafe_meta.get("plan") or "STARTER").upper()

@@ -13,3 +13,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
         # Automatically assign the tenant of the logged-in user
         validated_data['tenant'] = self.context['request'].user.tenant
         return super().create(validated_data)
+
+
+class EmployeeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Employee
+        exclude = ('kra_pin', 'mpesa_number', 'bank_details')

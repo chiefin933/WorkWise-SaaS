@@ -55,7 +55,17 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                 
             return (user, None)
         except User.DoesNotExist:
-            if settings.DEBUG:
+            if settings.DEBUG and not getattr(settings, 'TESTING', False):
+                # SAFETY: refuse auto-provisioning if a real Supabase DB is configured,
+                # even in DEBUG mode. Set up the Clerk webhook to sync users properly.
+                import os
+                db_url = os.environ.get('DATABASE_URL', '')
+                if db_url and 'supabase' in db_url:
+                    logger.warning(
+                        "ClerkAuth: Refusing auto-provision — real Supabase DB detected "
+                        "even though DEBUG=True. Configure the Clerk webhook instead.",
+                    )
+                    return None
                 logger.info(
                     "ClerkAuth: Auto-provisioning user for clerk_id=%s in DEBUG mode",
                     clerk_id,
@@ -155,10 +165,11 @@ class ClerkAuthentication(authentication.BaseAuthentication):
 
             audience = getattr(settings, 'CLERK_AUDIENCE', '')
             if not audience:
-                logger.error(
-                    "ClerkAuth: CLERK_AUDIENCE is not configured for Clerk token validation."
+                logger.info(
+                    "ClerkAuth: CLERK_AUDIENCE is empty/blank, skipping audience validation."
                 )
-                return None
+                audience = None
+
 
             jwks_url = self._get_trusted_jwks_url()
             if not jwks_url:

@@ -36,8 +36,8 @@ export function AddPayrollRunModal({ isOpen, onClose, onSuccess }: AddPayrollRun
     setError('');
 
     try {
-      const res = await api.post<{ id: string | number }>('/payroll/', formData);
-      onSuccess(String(res.data.id));
+      const res = await api.post<{ id: string }>('/payroll/', formData);
+      onSuccess(res.data.id);
       onClose();
     } catch (error) {
       const apiError = error as { response?: { data?: ApiErrorResponse } };

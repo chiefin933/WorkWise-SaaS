@@ -32,6 +32,11 @@ class User(AbstractUser):
         ('EMPLOYEE', 'Employee'),
     ], default='EMPLOYEE')
     clerk_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    invite_token = models.CharField(max_length=36, null=True, blank=True, db_index=True)
+    # Stores per-user notification toggle preferences.
+    # Keys: payroll_run, leave_status, new_member, trial_expiry
+    # Values: True (enabled) or False (disabled). Missing key = True (default on).
+    notification_preferences = models.JSONField(default=dict, blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -40,3 +45,28 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('payroll', 'Payroll'),
+        ('leave', 'Leave'),
+        ('employee', 'Employee'),
+        ('system', 'System')
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    action_url = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.recipient.email}"
+

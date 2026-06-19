@@ -11,7 +11,6 @@ class PayrollItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class PayrollRunSerializer(serializers.ModelSerializer):
-    items = PayrollItemSerializer(many=True, read_only=True)
     item_count = serializers.IntegerField(source='items.count', read_only=True)
     total_net = serializers.SerializerMethodField()
 
@@ -26,3 +25,7 @@ class PayrollRunSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['tenant'] = self.context['request'].user.tenant
         return super().create(validated_data)
+
+
+class PayrollRunDetailSerializer(PayrollRunSerializer):
+    items = PayrollItemSerializer(many=True, read_only=True)

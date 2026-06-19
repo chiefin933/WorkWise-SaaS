@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { GlassCard } from '@/components/premium/GlassCard';
 import { AddAttendanceModal } from '@/components/premium/AddAttendanceModal';
 import { useAuthStore } from '@/lib/store';
+import { useToast } from '@/components/ui/toast';
 import type { AttendanceLog, AttendanceStats, Employee } from '@/lib/types';
 
 interface PresenceMatrixItem {
@@ -39,7 +40,9 @@ export default function AttendancePage() {
   const [clocking, setClocking] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const { toast, container: toastContainer } = useToast();
   const now = new Date();
+  const canManageAttendance = ['ADMIN', 'HR'].includes(user?.role ?? '');
 
   // Queries
   const { data: stats } = useQuery<AttendanceStats>({
@@ -116,7 +119,7 @@ export default function AttendancePage() {
           queryClient.invalidateQueries({ queryKey: ['presence-matrix'] });
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } } };
-          alert(error.response?.data?.error || 'Failed to clock in');
+          toast(error.response?.data?.error || 'Failed to clock in', 'error');
         } finally {
           setClocking(false);
         }
@@ -133,7 +136,7 @@ export default function AttendancePage() {
           queryClient.invalidateQueries({ queryKey: ['presence-matrix'] });
         } catch (err: unknown) {
           const error = err as { response?: { data?: { error?: string } } };
-          alert(error.response?.data?.error || 'Failed to clock in');
+          toast(error.response?.data?.error || 'Failed to clock in', 'error');
         } finally {
           setClocking(false);
         }
@@ -153,7 +156,7 @@ export default function AttendancePage() {
       queryClient.invalidateQueries({ queryKey: ['presence-matrix'] });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
-      alert(error.response?.data?.error || 'Failed to clock out');
+      toast(error.response?.data?.error || 'Failed to clock out', 'error');
     } finally {
       setClocking(false);
     }
@@ -161,6 +164,7 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-8">
+      {toastContainer}
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -168,7 +172,7 @@ export default function AttendancePage() {
           <p className="text-slate-500 dark:text-slate-400">Monitor workforce punctuality, logging hours and status in real-time.</p>
         </div>
         <div className="flex items-center gap-3">
-          {user?.role === 'ADMIN' && (
+          {canManageAttendance && (
             <Button 
               onClick={() => setIsModalOpen(true)}
               className="bg-slate-950 hover:bg-slate-900 dark:bg-white dark:hover:bg-slate-100 dark:text-slate-950 text-white gap-2 px-6 py-6 rounded-2xl transition-all shadow-sm font-bold"
@@ -221,7 +225,7 @@ export default function AttendancePage() {
           My Timecard
           {activeTab === 'timecard' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-950 dark:bg-white rounded-full" />}
         </button>
-        {user?.role === 'ADMIN' && (
+        {canManageAttendance && (
           <button 
             onClick={() => setActiveTab('matrix')}
             className={`pb-4 text-sm font-bold transition-all relative ${
@@ -232,15 +236,17 @@ export default function AttendancePage() {
             {activeTab === 'matrix' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-950 dark:bg-white rounded-full" />}
           </button>
         )}
-        <button 
-          onClick={() => setActiveTab('directory')}
-          className={`pb-4 text-sm font-bold transition-all relative ${
-            activeTab === 'directory' ? 'text-slate-950 dark:text-white' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          Daily Logs Directory
-          {activeTab === 'directory' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-950 dark:bg-white rounded-full" />}
-        </button>
+        {canManageAttendance && (
+          <button 
+            onClick={() => setActiveTab('directory')}
+            className={`pb-4 text-sm font-bold transition-all relative ${
+              activeTab === 'directory' ? 'text-slate-950 dark:text-white' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Daily Logs Directory
+            {activeTab === 'directory' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-950 dark:bg-white rounded-full" />}
+          </button>
+        )}
       </div>
 
       {/* Tab Panels */}
@@ -322,7 +328,7 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {activeTab === 'matrix' && user?.role === 'ADMIN' && (
+      {activeTab === 'matrix' && canManageAttendance && (
         <div className="space-y-6">
           {/* Presence Filter bar */}
           <GlassCard className="p-4 border border-slate-200/60 flex flex-col md:flex-row md:items-center gap-4">
@@ -411,7 +417,7 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {activeTab === 'directory' && (
+      {activeTab === 'directory' && canManageAttendance && (
         <div className="space-y-6">
           <GlassCard className="p-4 border border-slate-200/60 flex flex-col md:flex-row md:items-center gap-4">
             <div className="relative flex-1 group">
@@ -486,7 +492,7 @@ export default function AttendancePage() {
                         </td>
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                            <MapPin className="h-3 w-3" /> Office
+                            <MapPin className="h-3 w-3" /> {log.location || 'Office'}
                           </div>
                         </td>
                         <td className="px-6 py-5 text-right">

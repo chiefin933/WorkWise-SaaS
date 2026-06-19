@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { GlassCard } from '@/components/premium/GlassCard';
+import { StatutoryExportButtons } from '@/components/payroll/StatutoryExportButtons';
 import { AddPayrollRunModal } from '@/components/premium/AddPayrollRunModal';
 import { MpesaDisbursementModal } from '@/components/premium/MpesaDisbursementModal';
 import { BankExportModal } from '@/components/premium/BankExportModal';
@@ -49,6 +50,7 @@ export default function PayrollPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [selectedDisburseRun, setSelectedDisburseRun] = useState<PayrollRun | null>(null);
   const [selectedBankExportRun, setSelectedBankExportRun] = useState<PayrollRun | null>(null);
+  const [sendPayslipsConfirm, setSendPayslipsConfirm] = useState<PayrollRun | null>(null);
   const queryClient = useQueryClient();
 
   const now = new Date();
@@ -60,6 +62,7 @@ export default function PayrollPage() {
 
   const invalidatePayroll = () => {
     queryClient.invalidateQueries({ queryKey: ['payroll-runs'] });
+    queryClient.invalidateQueries({ queryKey: ['payroll-run-detail'] });
     queryClient.invalidateQueries({ queryKey: ['payroll-summary'] });
     queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
   };
@@ -72,6 +75,15 @@ export default function PayrollPage() {
       const res = await api.get<PayrollRun[]>('/payroll/');
       return res.data;
     }
+  });
+
+  const { data: expandedRunDetail, isLoading: isRunDetailLoading } = useQuery<PayrollRun>({
+    queryKey: ['payroll-run-detail', expandedRunId],
+    enabled: !!expandedRunId,
+    queryFn: async () => {
+      const res = await api.get<PayrollRun>(`/payroll/${expandedRunId}/`);
+      return res.data;
+    },
   });
 
   const { data: summary } = useQuery<PayrollSummary>({
@@ -302,8 +314,8 @@ export default function PayrollPage() {
                     </tr>
                   ) : (
                     payrollRuns?.map((run) => (
-                      <>
-                        <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <Fragment key={run.id}>
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-3">
                               <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
@@ -331,11 +343,11 @@ export default function PayrollPage() {
                               {run.status === 'draft' && (
                                 <Button
                                   size="sm"
-                                  onClick={() => handleProcess(run.id.toString())}
-                                  disabled={processingId === run.id.toString()}
+                                  onClick={() => handleProcess(run.id)}
+                                  disabled={processingId === run.id}
                                   className="bg-teal-600 hover:bg-teal-700 text-white gap-2 rounded-xl h-10 px-4"
                                 >
-                                  {processingId === run.id.toString()
+                                  {processingId === run.id
                                     ? <Loader2 className="h-4 w-4 animate-spin" />
                                     : <><Play className="h-4 w-4" /> Run</>}
                                 </Button>
@@ -346,33 +358,33 @@ export default function PayrollPage() {
                                 <>
                                   <Button
                                     size="sm"
-                                    onClick={() => handleApprove(run.id.toString())}
-                                    disabled={approvingId === run.id.toString()}
+                                    onClick={() => handleApprove(run.id)}
+                                    disabled={approvingId === run.id}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl h-10 px-3"
                                   >
-                                    {approvingId === run.id.toString()
+                                    {approvingId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <><CheckCircle className="h-4 w-4" /> Approve</>}
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleSendPayslips(run.id.toString())}
-                                    disabled={emailingId === run.id.toString()}
+                                    onClick={() => setSendPayslipsConfirm(run)}
+                                    disabled={emailingId !== null}
                                     title="Email payslips to all employees"
                                     className="rounded-xl h-10 w-10 p-0 text-teal-600 hover:bg-teal-50"
                                   >
-                                    {emailingId === run.id.toString()
+                                    {emailingId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <Mail className="h-4 w-4" />}
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setExpandedRunId(expandedRunId === run.id.toString() ? null : run.id.toString())}
+                                    onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                                     className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-500/10 text-teal-600"
                                   >
-                                    {expandedRunId === run.id.toString() ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                    {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                                   </Button>
                                 </>
                               )}
@@ -406,33 +418,33 @@ export default function PayrollPage() {
                                   </Button>
                                   <Button
                                     size="sm"
-                                    onClick={() => handleMarkPaid(run.id.toString())}
-                                    disabled={markingPaidId === run.id.toString()}
+                                    onClick={() => handleMarkPaid(run.id)}
+                                    disabled={markingPaidId === run.id}
                                     className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5 rounded-xl h-10 px-3"
                                   >
-                                    {markingPaidId === run.id.toString()
+                                    {markingPaidId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <><BadgeDollarSign className="h-4 w-4" /> Mark Paid</>}
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleSendPayslips(run.id.toString())}
-                                    disabled={emailingId === run.id.toString()}
+                                    onClick={() => setSendPayslipsConfirm(run)}
+                                    disabled={emailingId !== null}
                                     title="Email payslips to all employees"
                                     className="rounded-xl h-10 w-10 p-0 text-teal-600 hover:bg-teal-50"
                                   >
-                                    {emailingId === run.id.toString()
+                                    {emailingId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <Mail className="h-4 w-4" />}
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setExpandedRunId(expandedRunId === run.id.toString() ? null : run.id.toString())}
+                                    onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                                     className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-500/10 text-teal-600"
                                   >
-                                    {expandedRunId === run.id.toString() ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                    {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                                   </Button>
                                 </>
                               )}
@@ -446,22 +458,22 @@ export default function PayrollPage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleSendPayslips(run.id.toString())}
-                                    disabled={emailingId === run.id.toString()}
+                                    onClick={() => setSendPayslipsConfirm(run)}
+                                    disabled={emailingId !== null}
                                     title="Re-send payslips"
                                     className="rounded-xl h-10 w-10 p-0 text-slate-400 hover:text-teal-600 hover:bg-teal-50"
                                   >
-                                    {emailingId === run.id.toString()
+                                    {emailingId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <Mail className="h-4 w-4" />}
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setExpandedRunId(expandedRunId === run.id.toString() ? null : run.id.toString())}
+                                    onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                                     className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 text-teal-600"
                                   >
-                                    {expandedRunId === run.id.toString() ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                    {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                                   </Button>
                                 </>
                               )}
@@ -470,7 +482,7 @@ export default function PayrollPage() {
                         </tr>
 
                         {/* Expanded employee breakdown */}
-                        {expandedRunId === run.id.toString() && (
+                        {expandedRunId === run.id && (
                           <tr className="bg-slate-50/30">
                             <td colSpan={5} className="px-6 py-4">
                               <div className="p-4 border border-slate-200/50 rounded-2xl space-y-4">
@@ -479,16 +491,27 @@ export default function PayrollPage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleSendPayslips(run.id.toString())}
-                                    disabled={emailingId === run.id.toString()}
+                                    onClick={() => setSendPayslipsConfirm(run)}
+                                    disabled={emailingId !== null}
                                     className="text-teal-600 hover:text-teal-700 h-8 rounded-lg gap-1.5 px-3 text-xs font-bold"
                                   >
-                                    {emailingId === run.id.toString()
+                                    {emailingId === run.id
                                       ? <><Loader2 className="h-3 w-3 animate-spin" /> Sending...</>
                                       : <><Mail className="h-3.5 w-3.5" /> Email All Payslips</>}
                                   </Button>
                                 </div>
-                                <div className="overflow-x-auto">
+                                {isRunDetailLoading ? (
+                                  <div className="space-y-2">
+                                    {[...Array(3)].map((_, i) => (
+                                      <div key={i} className="h-10 animate-pulse rounded-xl bg-slate-100" />
+                                    ))}
+                                  </div>
+                                ) : (expandedRunDetail?.items ?? []).length === 0 ? (
+                                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+                                    No payroll items found for this run.
+                                  </div>
+                                ) : (
+                                  <div className="overflow-x-auto">
                                   <table className="w-full text-left text-xs border-collapse">
                                     <thead>
                                       <tr className="border-b border-slate-200">
@@ -501,7 +524,7 @@ export default function PayrollPage() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                      {run.items?.map((item: PayrollItem) => {
+                                      {(expandedRunDetail?.items ?? []).map((item: PayrollItem) => {
                                         const statutorySum = Number(item.nssf) + Number(item.shif) + Number(item.ahl);
                                         return (
                                           <tr key={item.id} className="hover:bg-slate-100/50">
@@ -528,12 +551,18 @@ export default function PayrollPage() {
                                       })}
                                     </tbody>
                                   </table>
-                                </div>
+                                  </div>
+                                )}
+
+                                {/* Statutory CSV exports — Growth plan and above, processed/approved/paid only */}
+                                {['processed', 'approved', 'paid'].includes(run.status) && (
+                                  <StatutoryExportButtons payrollRunId={run.id.toString()} />
+                                )}
                               </div>
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     ))
                   )}
                 </tbody>
@@ -623,6 +652,56 @@ export default function PayrollPage() {
         isPlanLocked={!isGrowthPlus}
         currentPlan={user?.plan ?? 'STARTER'}
       />
+
+      {/* Email Payslips Confirmation Modal */}
+      {sendPayslipsConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            onClick={() => !emailingId && setSendPayslipsConfirm(null)}
+          />
+          {/* Modal Container */}
+          <GlassCard className="relative w-full max-w-md p-6 border border-slate-200/60 animate-in zoom-in-95 duration-200 space-y-4">
+            <h3 className="text-xl font-bold font-outfit text-slate-900 dark:text-white flex items-center gap-2">
+              <Mail className="h-6 w-6 text-teal-500" />
+              Confirm Email Delivery
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              You are about to email payslips to <span className="font-bold text-slate-900 dark:text-white">{sendPayslipsConfirm.item_count}</span> employees for <span className="font-bold text-slate-900 dark:text-white">{getMonthName(sendPayslipsConfirm.month)} {sendPayslipsConfirm.year}</span>.
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl font-medium">
+              ⚠️ Note: This action will send emails directly to all employees with an email on file. This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button
+                type="button"
+                disabled={emailingId !== null}
+                onClick={() => setSendPayslipsConfirm(null)}
+                className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 rounded-xl h-11 px-4 font-bold border border-slate-200 dark:border-slate-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={emailingId !== null}
+                onClick={async () => {
+                  const runId = sendPayslipsConfirm.id;
+                  await handleSendPayslips(runId);
+                  setSendPayslipsConfirm(null);
+                }}
+                className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl h-11 px-6 font-bold flex items-center gap-2"
+              >
+                {emailingId !== null ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Confirm & Send'
+                )}
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }

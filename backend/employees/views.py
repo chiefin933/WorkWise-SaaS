@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status, serializers
+from rest_framework import viewsets, permissions, status, serializers, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -6,13 +6,13 @@ from rest_framework.exceptions import ValidationError
 import csv
 import io
 from .models import Employee
-from .serializers import EmployeeSerializer
+from .serializers import EmployeeListSerializer, EmployeeSerializer
 from attendance.models import Attendance
 from attendance.serializers import AttendanceSerializer
 from leave.models import Leave
 from leave.serializers import LeaveSerializer
 from payroll.models import PayrollItem
-from core.permissions import IsHROrAdmin
+from core.permissions import IsHROrAdmin, IsSelfOrHRAdmin
 
 
 def _requesting_employee_for_user(user):
@@ -25,12 +25,24 @@ def _requesting_employee_for_user(user):
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'email', 'department', 'job_title']
+    ordering_fields = ['name', 'salary_basic', 'hire_date']
+    ordering = ['name']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return EmployeeListSerializer
+        return EmployeeSerializer
 
     def get_permissions(self):
         # Tenant-wide directory management requires HR/Admin
         if self.action in ['list', 'create', 'bulk_import', 'destroy']:
             return [permissions.IsAuthenticated(), IsHROrAdmin()]
-        # Detail views are allowed for the employee themself or HR/Admin
+        # Retrieve and update: employee can access own record; HR/Admin can access any
+        if self.action in ['retrieve', 'update', 'partial_update']:
+            return [permissions.IsAuthenticated(), IsSelfOrHRAdmin()]
+        # Other detail actions (attendance, leave, payslips) enforce self-check inline
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
@@ -101,17 +113,75 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     break
                 normalized_row = {str(k).strip().lower(): v for k, v in row.items() if k is not None}
                 
-                name = normalized_row.get('name', '').strip()
-                if not name:
-                    name = normalized_row.get('full name', '').strip() or normalized_row.get('employee name', '').strip()
+                # Support multiple column name variants
+                name = (
+                    normalized_row.get('name', '') or
+                    normalized_row.get('full name', '') or
+                    normalized_row.get('employee name', '') or
+                    normalized_row.get('fullname', '')
+                ).strip()
 
-                email = normalized_row.get('email', '').strip() or None
+                email = (
+                    normalized_row.get('email', '') or
+                    normalized_row.get('work email', '') or
+                    normalized_row.get('email address', '')
+                ).strip() or None
+
+                phone = (
+                    normalized_row.get('phone', '') or
+                    normalized_row.get('phone number', '') or
+                    normalized_row.get('mobile', '') or
+                    normalized_row.get('mobile number', '')
+                ).strip() or None
+
+                department = (
+                    normalized_row.get('department', '') or
+                    normalized_row.get('dept', '')
+                ).strip()
+
+                job_title = (
+                    normalized_row.get('job_title', '') or
+                    normalized_row.get('job title', '') or
+                    normalized_row.get('title', '') or
+                    normalized_row.get('position', '')
+                ).strip()
+
+                kra_pin = (
+                    normalized_row.get('kra_pin', '') or
+                    normalized_row.get('kra pin', '') or
+                    normalized_row.get('kra', '')
+                ).strip() or None
+
+                employment_type_raw = (
+                    normalized_row.get('employment_type', '') or
+                    normalized_row.get('employment type', '') or
+                    normalized_row.get('type', '')
+                ).strip().lower()
+                # Map human-readable values to model choices
+                employment_type_map = {
+                    'monthly': 'monthly', 'weekly': 'weekly',
+                    'daily': 'daily', 'hourly': 'hourly',
+                }
+                employment_type = employment_type_map.get(employment_type_raw, 'monthly')
+
+                payment_method_raw = (
+                    normalized_row.get('payment_method', '') or
+                    normalized_row.get('payment method', '') or
+                    normalized_row.get('payment', '')
+                ).strip().lower()
+                payment_method_map = {'bank': 'bank', 'mpesa': 'mpesa', 'm-pesa': 'mpesa'}
+                payment_method = payment_method_map.get(payment_method_raw, 'bank')
                 if not name:
-                    errors.append(f"Row {row_num}: Missing 'name'")
+                    errors.append(f"Row {row_num}: Missing name")
                     continue
-                
-                # Try to safely parse salary
-                salary_raw = normalized_row.get('salary_basic', '') or normalized_row.get('salary', '') or normalized_row.get('basic salary', '')
+
+                # Salary — supports multiple column names
+                salary_raw = (
+                    normalized_row.get('salary_basic', '') or
+                    normalized_row.get('basic salary (kes)', '') or
+                    normalized_row.get('basic salary', '') or
+                    normalized_row.get('salary', '')
+                )
                 try:
                     salary_basic = float(str(salary_raw).replace(',', '').strip()) if salary_raw else 0
                 except ValueError:
@@ -122,10 +192,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                         tenant=tenant,
                         name=name,
                         email=email,
-                        phone=normalized_row.get('phone', '').strip() or None,
-                        department=normalized_row.get('department', '').strip(),
-                        job_title=normalized_row.get('job_title', '').strip() or normalized_row.get('job title', '').strip() or normalized_row.get('title', '').strip(),
+                        phone=phone,
+                        department=department,
+                        job_title=job_title,
+                        kra_pin=kra_pin,
+                        employment_type=employment_type,
                         salary_basic=salary_basic,
+                        payment_method=payment_method,
                     )
                 )
 

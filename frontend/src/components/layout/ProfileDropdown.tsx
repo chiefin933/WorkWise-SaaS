@@ -14,6 +14,7 @@ export default function ProfileDropdown() {
   const { signOut } = useAuth();
   const { user } = useUser();
   const profile = useAuthStore((s) => s.user);
+  const isLoadingProfile = useAuthStore((s) => s.isLoading || !s.hasFetched);
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -72,7 +73,10 @@ export default function ProfileDropdown() {
             {user?.firstName || 'User'}
           </span>
           <span className="text-[11px] text-slate-400 leading-tight">
-            {roleLabel[profile?.role || ''] || 'Member'}
+            {isLoadingProfile
+              ? <span className="inline-block h-2.5 w-16 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" />
+              : roleLabel[profile?.role || ''] || profile?.role || '—'
+            }
           </span>
         </div>
       </button>
@@ -117,7 +121,10 @@ export default function ProfileDropdown() {
               <div className="mt-3">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 text-[11px] font-medium">
                   <Shield className="h-3 w-3" />
-                  {roleLabel[profile?.role || ''] || 'Member'}
+                  {isLoadingProfile
+                    ? <span className="inline-block h-2.5 w-20 rounded bg-teal-200/60 animate-pulse" />
+                    : roleLabel[profile?.role || ''] || profile?.role || '—'
+                  }
                 </span>
               </div>
             </div>

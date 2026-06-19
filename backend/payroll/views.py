@@ -17,7 +17,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import PayrollRun, PayrollItem, PayrollConfig, MpesaTransaction
-from .serializers import PayrollRunSerializer
+from .serializers import PayrollRunDetailSerializer, PayrollRunSerializer
 from .engine import PayrollEngine
 from employees.models import Employee
 from attendance.models import Attendance
@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 class PayrollRunViewSet(viewsets.ModelViewSet):
     serializer_class = PayrollRunSerializer
     permission_classes = [permissions.IsAuthenticated, IsHROrAdmin]
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return PayrollRunDetailSerializer
+        return PayrollRunSerializer
 
     def get_queryset(self):
         return PayrollRun.objects.filter(tenant=self.request.user.tenant).order_by('-year', '-month')
@@ -685,3 +690,51 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
         doc.build(story)
         buffer.seek(0)
         return buffer
+
+
+# ── Statutory Export View ─────────────────────────────────────────────────────
+
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+
+from .export_services import StatutoryExporter
+
+STATUTORY_PLANS = {'GROWTH', 'BUSINESS', 'ENTERPRISE'}
+VALID_EXPORT_TYPES = {'paye', 'nssf', 'shif', 'ahl'}
+
+
+class StatutoryExportView(APIView):
+    """
+    Stream a government-filing CSV for a processed/approved/paid payroll run.
+
+    GET /api/payroll/{payroll_run_id}/export/{export_type}/
+
+    export_type: paye | nssf | shif | ahl
+
+    Requires Growth plan or above (GROWTH, BUSINESS, ENTERPRISE).
+    Tenant isolation is enforced via the get_object_or_404 query.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsHROrAdmin]
+
+    def get(self, request, payroll_run_id, export_type):
+        # ── Plan gate ──────────────────────────────────────────────────────────
+        tenant = request.user.tenant
+        if tenant.plan not in STATUTORY_PLANS:
+            return Response(
+                {"error": "Upgrade your plan to access statutory exports."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # ── Export-type validation ─────────────────────────────────────────────
+        if export_type not in VALID_EXPORT_TYPES:
+            return Response(
+                {"error": f"Invalid export type '{export_type}'. Must be one of: {', '.join(sorted(VALID_EXPORT_TYPES))}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Tenant-scoped run lookup ───────────────────────────────────────────
+        payroll_run = get_object_or_404(PayrollRun, id=payroll_run_id, tenant=tenant)
+
+        exporter = StatutoryExporter()
+        return getattr(exporter, f'export_{export_type}')(payroll_run)

@@ -19,6 +19,7 @@ import {
   Briefcase,
   Shield,
   CreditCard,
+  UserCircle,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -28,22 +29,31 @@ export default function Sidebar() {
   const { user } = useUser();
   const profile = useAuthStore((s) => s.user);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const role = profile?.role;
+  const canManagePeople = role === 'ADMIN' || role === 'HR';
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    ...(profile?.role === 'ADMIN' || profile?.role === 'HR'
+    ...(canManagePeople
       ? [{ name: 'Manager Hub', href: '/manager', icon: Briefcase }]
       : []),
-    { name: 'Employees', href: '/employees', icon: Users },
+    ...(canManagePeople ? [{ name: 'Employees', href: '/employees', icon: Users }] : []),
     { name: 'Attendance', href: '/attendance', icon: Clock },
     { name: 'Leave', href: '/leave', icon: Calendar },
-    { name: 'Payroll', href: '/payroll', icon: DollarSign },
-    { name: 'Reports', href: '/reports', icon: FileText },
-    ...(profile?.role === 'ADMIN'
+    ...(canManagePeople
+      ? [
+          { name: 'Payroll', href: '/payroll', icon: DollarSign },
+          { name: 'Reports', href: '/reports', icon: FileText },
+        ]
+      : []),
+    ...(role === 'ADMIN'
       ? [
           { name: 'Audit Trail', href: '/audit', icon: Shield },
           { name: 'Billing', href: '/settings/billing', icon: CreditCard },
         ]
+      : []),
+    ...(role === 'EMPLOYEE'
+      ? [{ name: 'Self Service', href: '/manager/self-service', icon: UserCircle }]
       : []),
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
@@ -114,6 +124,11 @@ export default function Sidebar() {
                );
              })}
            </nav>
+           {!isCollapsed && role === 'EMPLOYEE' && (
+             <div className="mt-6 rounded-xl border border-slate-800 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-slate-500">
+               Payroll, Reports & Employees are managed by your HR team.
+             </div>
+           )}
         </div>
       </div>
 

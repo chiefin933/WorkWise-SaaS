@@ -17,7 +17,7 @@ const formatKES = (val: number) => {
 // 1. AREA CHART (Payroll Trend & Employee Growth)
 // ----------------------------------------------------------------------
 interface AreaChartProps {
-  data: Record<string, unknown>[];
+  data: Record<string, any>[];
   xKey: string;
   yKey: string; // primary numeric value (e.g., cost)
   y2Key?: string; // secondary numeric value (e.g., employees)
@@ -310,7 +310,7 @@ export const AreaChart: React.FC<AreaChartProps> = ({
 // 2. BAR CHART (Departmental Allocation)
 // ----------------------------------------------------------------------
 interface BarChartProps {
-  data: Record<string, unknown>[];
+  data: Record<string, any>[];
   xKey: string;
   yKey: string;
   title?: string;
@@ -498,7 +498,7 @@ export const BarChart: React.FC<BarChartProps> = ({
 // 3. DONUT CHART (Leave Distribution)
 // ----------------------------------------------------------------------
 interface DonutChartProps {
-  data: Record<string, unknown>[];
+  data: Record<string, any>[];
   nameKey: string;
   valueKey: string;
   title?: string;
@@ -537,7 +537,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({
     '#64748b', // Slate-500 (gray)
   ];
 
-  const segments = data.reduce<Array<{raw: Record<string, unknown>, pct: number, strokeLength: number, offset: number, color: string}>>((acc, d, i) => {
+  const segments = data.reduce<Array<{raw: Record<string, any>, pct: number, strokeLength: number, offset: number, color: string}>>((acc, d, i) => {
     const val = Number(d[valueKey]) || 0;
     const pct = val / total;
     const strokeLength = pct * circumference;

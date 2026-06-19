@@ -11,7 +11,7 @@ class TenantSerializer(serializers.ModelSerializer):
             'subscription_status', 'max_employees', 'trial_ends_at',
             'kra_pin', 'address', 'phone', 'created_at', 'updated_at',
         )
-        read_only_fields = ('id', 'plan', 'subscription_status', 'max_employees', 'trial_ends_at', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'plan', 'subscription_status', 'max_employees', 'trial_ends_at', 'created_at', 'updated_at')  # plan is intentionally read-only here — use UpgradePlanView (POST /api/settings/company/upgrade-plan/) to change it
 
 
 class PayrollConfigSerializer(serializers.ModelSerializer):

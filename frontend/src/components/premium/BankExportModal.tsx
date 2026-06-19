@@ -109,10 +109,11 @@ export function BankExportModal({ isOpen, onClose, run, isPlanLocked = false, cu
       setDone(true);
       setTimeout(() => setDone(false), 3000);
     } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: any } };
       // Check for plan gate 403
-      if ((err as { response?: { status?: number } })?.response?.status === 403) {
+      if (axiosErr.response?.status === 403) {
         try {
-          const text = await new Response((err as { response?: { data?: unknown } }).response?.data).text();
+          const text = await new Response(axiosErr.response.data).text();
           const parsed = JSON.parse(text);
           if (parsed?.upgrade_required) {
             setUpgradeRequired(true);
@@ -120,8 +121,8 @@ export function BankExportModal({ isOpen, onClose, run, isPlanLocked = false, cu
           }
         } catch {/* fall through to generic error */}
       }
-      const msg = (err as { response?: { data?: unknown } })?.response?.data
-        ? await new Response((err as { response?: { data?: unknown } }).response?.data).text()
+      const msg = axiosErr.response?.data
+        ? await new Response(axiosErr.response.data).text()
         : 'Export failed. Ensure employees have bank details set.';
       setError(msg.replace(/[{}"]/g, '').replace('error:', '').trim());
     } finally {

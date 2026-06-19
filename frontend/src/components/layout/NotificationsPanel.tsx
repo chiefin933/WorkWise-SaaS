@@ -3,74 +3,44 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, CheckCheck, Info, AlertTriangle, DollarSign, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { formatRelativeTime } from '@/lib/format';
+import Link from 'next/link';
 
-type NotifType = 'info' | 'warning' | 'payroll' | 'employee';
+type NotifType = 'payroll' | 'leave' | 'employee' | 'system';
 
 interface Notification {
   id: string;
   type: NotifType;
   title: string;
   message: string;
-  time: string;
-  read: boolean;
+  is_read: boolean;
+  action_url: string;
+  created_at: string;
 }
 
-const INITIAL_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'payroll',
-    title: 'Payroll Run Completed',
-    message: 'March 2025 payroll has been processed successfully for 24 employees.',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'employee',
-    title: 'New Employee Onboarded',
-    message: 'Jane Wanjiku has completed onboarding and is now active.',
-    time: '1 hr ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'warning',
-    title: 'Leave Request Pending',
-    message: 'Brian Otieno has a pending annual leave request that needs your approval.',
-    time: '3 hrs ago',
-    read: false,
-  },
-  {
-    id: '4',
-    type: 'info',
-    title: 'System Maintenance',
-    message: 'Scheduled maintenance on Sunday 9–10 PM EAT. No downtime expected.',
-    time: 'Yesterday',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'payroll',
-    title: 'Bank Export Ready',
-    message: 'Equity Bank CSV export for February payroll is ready to download.',
-    time: '2 days ago',
-    read: true,
-  },
-];
-
 const typeConfig: Record<NotifType, { icon: React.ElementType; bg: string; color: string }> = {
-  info:     { icon: Info,          bg: 'bg-blue-100 dark:bg-blue-900/40',   color: 'text-blue-600 dark:text-blue-400' },
-  warning:  { icon: AlertTriangle, bg: 'bg-amber-100 dark:bg-amber-900/40', color: 'text-amber-600 dark:text-amber-400' },
   payroll:  { icon: DollarSign,    bg: 'bg-teal-100 dark:bg-teal-900/40',   color: 'text-teal-600 dark:text-teal-400' },
+  leave:    { icon: AlertTriangle, bg: 'bg-amber-100 dark:bg-amber-900/40', color: 'text-amber-600 dark:text-amber-400' },
   employee: { icon: Users,         bg: 'bg-purple-100 dark:bg-purple-900/40', color: 'text-purple-600 dark:text-purple-400' },
+  system:   { icon: Info,          bg: 'bg-blue-100 dark:bg-blue-900/40',   color: 'text-blue-600 dark:text-blue-400' },
 };
 
 export default function NotificationsPanel() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const ref = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
-  const unread = notifications.filter((n) => !n.read).length;
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      const res = await api.get<Notification[]>('/notifications/');
+      return res.data;
+    }
+  });
+
+  const unread = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -80,16 +50,35 @@ export default function NotificationsPanel() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const markAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    try {
+      await api.post('/notifications/read-all/');
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
 
-  const dismiss = (id: string) =>
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const dismiss = async (id: string) => {
+    try {
+      await api.delete(`/notifications/${id}/`);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    } catch (err) {
+      console.error('Failed to dismiss notification:', err);
+    }
+  };
 
-  const markRead = (id: string) =>
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markRead = async (id: string) => {
+    try {
+      await api.post(`/notifications/${id}/read/`);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
 
   return (
     <div className="relative" ref={ref}>
@@ -142,15 +131,15 @@ export default function NotificationsPanel() {
                   <p className="text-sm">All caught up!</p>
                 </div>
               ) : (
-                notifications.map((n) => {
-                  const cfg = typeConfig[n.type];
+                notifications.slice(0, 5).map((n) => {
+                  const cfg = typeConfig[n.type] || typeConfig.system;
                   const Icon = cfg.icon;
                   return (
                     <div
                       key={n.id}
-                      onClick={() => markRead(n.id)}
+                      onClick={() => !n.is_read && markRead(n.id)}
                       className={`group flex gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
-                        n.read
+                        n.is_read
                           ? 'bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                           : 'bg-teal-50/60 dark:bg-teal-900/10 hover:bg-teal-50 dark:hover:bg-teal-900/20'
                       }`}
@@ -160,7 +149,7 @@ export default function NotificationsPanel() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
-                          <p className={`text-sm font-medium leading-snug ${n.read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
+                          <p className={`text-sm font-medium leading-snug ${n.is_read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
                             {n.title}
                           </p>
                           <button
@@ -172,8 +161,8 @@ export default function NotificationsPanel() {
                         </div>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
                         <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-[11px] text-slate-400 dark:text-slate-500">{n.time}</span>
-                          {!n.read && (
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">{formatRelativeTime(n.created_at)}</span>
+                          {!n.is_read && (
                             <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
                           )}
                         </div>
@@ -186,9 +175,9 @@ export default function NotificationsPanel() {
 
             {/* Footer */}
             <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
-              <button className="w-full text-center text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 font-medium transition-colors">
+              <Link href="/notifications" onClick={() => setOpen(false)} className="block w-full text-center text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 font-medium transition-colors">
                 View all notifications →
-              </button>
+              </Link>
             </div>
           </motion.div>
         )}

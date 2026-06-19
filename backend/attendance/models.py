@@ -20,6 +20,7 @@ class Attendance(TenantScopedModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        # employee already implies a single tenant, so this constraint is sufficient for tenant isolation
         unique_together = ('employee', 'date')
         indexes = [
             models.Index(fields=['employee', 'date'], name='att_employee_date_idx'),

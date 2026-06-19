@@ -1,8 +1,13 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { DashboardStats } from '@/lib/types';
+import { formatRelativeTime } from '@/lib/format';
+import { useAuthStore } from '@/lib/store';
+import { useToast } from '@/components/ui/toast';
 import { Users, DollarSign, Clock, AlertTriangle, ArrowUpRight, Calendar, Zap, LayoutGrid, Plus } from 'lucide-react';
 import { TiltCard } from '@/components/premium/TiltCard';
 import { GlassCard } from '@/components/premium/GlassCard';
@@ -11,12 +16,47 @@ import { AreaChart } from '@/components/premium/CustomCharts';
 import Link from 'next/link';
 
 export default function Dashboard() {
+  const user = useAuthStore((state) => state.user);
+  const isLoadingUser = useAuthStore((state) => state.isLoading);
+  const hasFetched   = useAuthStore((state) => state.hasFetched);
+  const router = useRouter();
+  const { toast, container: toastContainer } = useToast(5000);
+  const greetedRef = useRef(false);
+
+  // EMPLOYEE role users get their own portal — redirect to /manager
+  useEffect(() => {
+    if (user && user.role === 'EMPLOYEE') {
+      router.replace('/manager');
+    }
+  }, [user, router]);
+
+  // One-time personalised welcome toast — fires once per browser session
+  useEffect(() => {
+    if (!hasFetched || !user || greetedRef.current) return;
+
+    const key = `ww_greeted_${user.email}`;
+    if (sessionStorage.getItem(key)) return;
+
+    greetedRef.current = true;
+    sessionStorage.setItem(key, '1');
+
+    const hour = new Date().getHours();
+    const timeOfDay =
+      hour < 12 ? 'Good morning' :
+      hour < 18 ? 'Good afternoon' :
+      'Good evening';
+
+    const name = user.first_name || user.email?.split('@')[0] || 'there';
+    toast(`${timeOfDay}, ${name}! Welcome back.`, 'info');
+  }, [hasFetched, user, toast]);
+
   const { data, isLoading, error } = useQuery<DashboardStats>({
     queryKey: ['dashboardStats'],
     queryFn: async () => {
       const res = await api.get<DashboardStats>('/dashboard/stats/');
       return res.data;
     },
+    enabled: hasFetched && !!user && user.role !== 'EMPLOYEE',
   });
 
   const getGreeting = () => {
@@ -26,7 +66,7 @@ export default function Dashboard() {
     return 'Good evening';
   };
 
-  if (isLoading) {
+  if (!hasFetched || isLoadingUser || (hasFetched && user && user.role !== 'EMPLOYEE' && isLoading)) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="relative">
@@ -57,6 +97,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10">
+      {/* Welcome toast rendered here so it floats above everything */}
+      {toastContainer}
+
       {/* Welcome Hero */}
       <section className="relative overflow-hidden rounded-3xl bg-slate-900 p-8 md:p-12 shadow-xl">
         <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-slate-850/30 to-transparent pointer-events-none" />
@@ -67,11 +110,11 @@ export default function Dashboard() {
             All systems running smoothly
           </span>
           <h1 className="text-4xl md:text-5xl font-bold text-white font-outfit mb-4">
-            {getGreeting()}, <span className="text-white">Admin</span>
+            {getGreeting()}, <span className="text-white">{user?.first_name || 'there'}</span>
           </h1>
           <p className="text-slate-400 text-lg leading-relaxed mb-8">
             {isEmpty 
-              ? 'Welcome to Workwise! Let&apos;s get started by adding your first employee to activate the platform features.'
+              ? "Welcome to Workwise! Let's get started by adding your first employee to activate the platform features."
               : `Your workforce is growing. You have ${data?.pending_leaves || 0} pending leave requests that need your attention today.`
             }
           </p>
@@ -206,7 +249,6 @@ export default function Dashboard() {
                  </div>
                  <button className="text-sm font-semibold text-slate-800 dark:text-slate-200 hover:underline">View All</button>
               </div>
-              
               <div className="space-y-6">
                 {(data?.recent_activities || []).length > 0 ? data?.recent_activities?.map((activity, i) => (
                   <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 transition-colors hover:border-slate-300 dark:hover:border-slate-700 group">
@@ -217,7 +259,7 @@ export default function Dashboard() {
                       <h4 className="text-sm font-bold text-slate-900 dark:text-white">{activity.title}</h4>
                       <p className="text-xs text-slate-500 mt-0.5">{activity.description}</p>
                     </div>
-                    <span className="text-xs font-medium text-slate-400 italic">{activity.time}</span>
+                    <span className="text-xs font-medium text-slate-400 italic">{formatRelativeTime(activity.time)}</span>
                   </div>
                 )) : (
                   <p className="text-center text-slate-400 py-8 italic">No recent activity found.</p>
@@ -240,7 +282,6 @@ export default function Dashboard() {
                     />
                   </div>
                 </div>
-                
                 <div>
                   <div className="flex justify-between text-sm font-bold mb-2">
                     <span className="text-slate-650">Leave Utilization</span>
@@ -253,7 +294,6 @@ export default function Dashboard() {
                     />
                   </div>
                 </div>
-
                 <div className="pt-4 border-t border-slate-150 dark:border-slate-800">
                    <div className="p-4 rounded-2xl bg-slate-950 dark:bg-slate-900 text-white dark:text-slate-200 border border-slate-850 dark:border-slate-800 shadow-sm">
                      <h4 className="text-sm font-bold mb-1 flex items-center gap-2">
@@ -272,3 +312,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

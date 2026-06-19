@@ -5,7 +5,6 @@ Django settings for config project.
 
 from pathlib import Path
 import os
-from datetime import timedelta
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -44,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_celery_results',
     'core',
     'tenants',
     'users',
@@ -57,7 +57,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'core.middleware.RequestIDMiddleware',          # Must be first — stamps X-Request-ID on every request
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files efficiently
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -195,17 +197,22 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# ── Timezone ─────────────────────────────────────────────────────────────────
+# UTC+3 — East Africa Time. All stored timestamps are in UTC; Django converts
+# for display using this setting.
+TIME_ZONE = 'Africa/Nairobi'
 
 USE_I18N = True
 
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
-STATIC_URL = 'static/'
+# ── Static Files (WhiteNoise) ────────────────────────────────────────────────
+# WhiteNoise serves compressed, versioned static files directly from Gunicorn
+# without needing a separate Nginx static-file handler.
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -235,7 +242,6 @@ CORS_ALLOW_CREDENTIALS = True                       # Allow cookies / auth heade
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'core.authentication.ClerkAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -245,6 +251,9 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
     ),
     'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    # ── Pagination ───────────────────────────────────────────────────────────
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.OptionalPageNumberPagination',
+    'PAGE_SIZE': 25,
     # ── Rate Limiting (DRF built-in throttling) ──────────────────────────────
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
@@ -256,16 +265,6 @@ REST_FRAMEWORK = {
         'login': '10/minute',      # Custom scope for login endpoint
         'register': '5/hour',      # Custom scope for registration
     },
-}
-
-SIMPLE_JWT = {
-    # SECURITY: Short-lived access tokens reduce the window for token theft.
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': False,              # Enable if you add simplejwt-blacklist
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'UPDATE_LAST_LOGIN': True,
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -304,11 +303,117 @@ except Exception as e:
 
 
 
+# ── Redis Cache ───────────────────────────────────────────────────────────────
+# Uses django-redis for cache backend. Falls back to LocMemCache in dev when
+# REDIS_URL is not set, so no Redis install is required locally.
+_REDIS_URL = os.environ.get('REDIS_URL', '')
+
+if _REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': _REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'RETRY_ON_TIMEOUT': True,
+                'MAX_CONNECTIONS': 50,
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+            },
+            'KEY_PREFIX': 'workwise',
+            'TIMEOUT': 300,  # 5 minutes default TTL
+        }
+    }
+    # Use Redis for DRF throttle cache too
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ]
+else:
+    # Local dev: in-memory cache (no Redis required)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'workwise-dev',
+        }
+    }
+
+# ── Celery ────────────────────────────────────────────────────────────────────
+# Async task queue for long-running payroll processing & email jobs.
+# Defaults to Redis if REDIS_URL is set; otherwise uses a dummy backend for dev.
+if _REDIS_URL:
+    CELERY_BROKER_URL = _REDIS_URL
+    CELERY_RESULT_BACKEND = 'django-db'      # Persist results via django_celery_results
+else:
+    CELERY_TASK_ALWAYS_EAGER = True           # Run tasks synchronously in dev
+    CELERY_TASK_EAGER_PROPAGATES = True
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULER = 'django_celery_results.schedulers:DatabaseScheduler'
+
+
 # ── Logging ───────────────────────────────────────────────────────────────────
+# In production we emit structured JSON so log aggregators (CloudWatch, Loki,
+# Datadog) can parse and index fields without regex.  Each line includes:
+#   timestamp, level, logger, message, request_id, tenant_id, user_id
+#
+# In DEBUG mode we fall back to the human-readable verbose formatter so local
+# development stays readable in the terminal.
+#
+# The WorkwiseJsonFormatter pulls request_id / tenant_id / user_id from the
+# thread-local set by RequestIDMiddleware (core.middleware).
+
+class WorkwiseJsonFormatter:  # noqa: E302  (defined here to avoid a separate file)
+    """
+    pythonjsonlogger-based formatter that injects WorkWise request context
+    (request_id, tenant_id, user_id) from the thread-local set by
+    RequestIDMiddleware into every structured log line.
+    """
+    def __init__(self):
+        try:
+            from pythonjsonlogger.jsonlogger import JsonFormatter
+            self._formatter = JsonFormatter(
+                fmt='%(asctime)s %(levelname)s %(name)s %(message)s',
+                rename_fields={'asctime': 'timestamp', 'levelname': 'level', 'name': 'logger'},
+            )
+        except ImportError:
+            self._formatter = None
+
+    def format(self, record):
+        # Inject request-scoped context if available
+        try:
+            from core.middleware import get_request_id, get_request_tenant_id, get_request_user_id
+            record.request_id = get_request_id()
+            record.tenant_id  = get_request_tenant_id()
+            record.user_id    = get_request_user_id()
+        except Exception:
+            record.request_id = ''
+            record.tenant_id  = ''
+            record.user_id    = ''
+
+        if self._formatter:
+            return self._formatter.format(record)
+        # Fallback if pythonjsonlogger import failed
+        import logging
+        return logging.Formatter(
+            fmt='{asctime} {levelname} {name} {message}', style='{'
+        ).format(record)
+
+
+# Django's LOGGING dict requires dotted-string class paths; we register ours
+# via a factory callable using the '()' key.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
+        'json': {
+            '()': WorkwiseJsonFormatter,
+        },
+        # Kept for local dev readability when DEBUG=True
         'verbose': {
             'format': '{asctime} {levelname} {name} {message}',
             'style': '{',
@@ -317,7 +422,8 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            # Use JSON in production; readable verbose format in DEBUG
+            'formatter': 'verbose' if DEBUG else 'json',
         },
     },
     'root': {
@@ -330,12 +436,32 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
         'core': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
         'users': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'payroll': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'attendance': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        'leave': {
             'handlers': ['console'],
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
@@ -360,6 +486,7 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = os.environ.get(
     'DEFAULT_FROM_EMAIL', 'WorkWise HR <noreply@workwise.co.ke>'
 )
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
 # ── M-Pesa Safaricom Daraja B2C ───────────────────────────────────────────────
 MPESA_ENABLED            = os.environ.get('MPESA_ENABLED', 'False').lower() == 'true'
@@ -413,4 +540,3 @@ if MPESA_ENABLED and not MPESA_SANDBOX and not DEBUG:
             'Missing required live M-Pesa setting(s): '
             + ', '.join(missing_mpesa_settings)
         )
-

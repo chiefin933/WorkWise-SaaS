@@ -1,8 +1,9 @@
 import calendar
 import csv
 from datetime import date, timedelta
+from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import views, permissions, status
@@ -383,3 +384,214 @@ class P9AnnualView(views.APIView):
         year = int(request.query_params.get('year', date.today().year))
         report_view = ReportGenerationView()
         return report_view.generate_p9_annual(tenant, year)
+
+
+class P10MonthlyView(views.APIView):
+    """
+    KRA iTax P10 Monthly PAYE Return (one row per employee).
+    Accepts: ?month=6&year=2025
+    Columns match the standard KRA iTax P10 upload template.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsHROrAdmin]
+
+    def get(self, request):
+        tenant = request.user.tenant
+        today = date.today()
+        month = int(request.query_params.get('month', today.month))
+        year  = int(request.query_params.get('year',  today.year))
+
+        response = HttpResponse(content_type='text/csv')
+        filename = f'p10_paye_{year}_{month:02d}.csv'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        # KRA iTax P10 column headings
+        writer.writerow([
+            'Employee PIN',
+            'Employee Name',
+            'Basic Salary',
+            'Allowances',
+            'Benefits (Non-Cash)',
+            'Gross Emoluments',
+            'Owner Occupied Interest',
+            'Defined Contribution',
+            'Allowable Deductions',
+            'Chargeable Pay',
+            'Monthly PAYE',
+            'Personal Relief',
+            'Insurance Relief',
+            'Net PAYE Payable',
+        ])
+
+        items = PayrollItem.objects.filter(
+            payroll_run__tenant=tenant,
+            payroll_run__month=month,
+            payroll_run__year=year,
+            payroll_run__status__in=['processed', 'approved', 'paid'],
+        ).select_related('employee', 'payroll_run')
+
+        personal_relief = Decimal('2400.00')  # standard KRA monthly relief
+
+        for item in items:
+            emp = item.employee
+            allowances_total = (
+                sum(Decimal(str(v)) for v in emp.allowances.values())
+                if emp.allowances else Decimal('0.00')
+            )
+            gross = item.gross_salary
+            # Chargeable pay = gross - NSSF - SHIF - AHL (allowable deductions)
+            allowable = item.nssf + item.shif + item.ahl
+            chargeable = max(gross - allowable, Decimal('0.00'))
+            net_paye = max(item.paye - personal_relief, Decimal('0.00'))
+
+            writer.writerow([
+                emp.kra_pin or 'N/A',
+                emp.name,
+                float(emp.salary_basic),
+                float(allowances_total),
+                0.00,          # Benefits (non-cash) — extend when benefit-in-kind is tracked
+                float(gross),
+                0.00,          # Owner Occupied Interest
+                float(item.nssf),
+                float(allowable),
+                float(chargeable),
+                float(item.paye),
+                float(personal_relief),
+                0.00,          # Insurance Relief — extend when tracked
+                float(net_paye),
+            ])
+
+        return response
+
+
+class NSSFScheduleView(views.APIView):
+    """
+    NSSF Monthly Remittance Schedule.
+    Accepts: ?month=6&year=2025
+    Lists employee + employer contributions per employee for the month.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsHROrAdmin]
+
+    def get(self, request):
+        tenant = request.user.tenant
+        today = date.today()
+        month = int(request.query_params.get('month', today.month))
+        year  = int(request.query_params.get('year',  today.year))
+
+        response = HttpResponse(content_type='text/csv')
+        filename = f'nssf_schedule_{year}_{month:02d}.csv'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Employee Name',
+            'KRA PIN',
+            'National ID / NSSF No.',
+            'Gross Salary',
+            'Employee NSSF (6%)',
+            'Employer NSSF (6%)',
+            'Total NSSF Contribution',
+        ])
+
+        items = PayrollItem.objects.filter(
+            payroll_run__tenant=tenant,
+            payroll_run__month=month,
+            payroll_run__year=year,
+            payroll_run__status__in=['processed', 'approved', 'paid'],
+        ).select_related('employee')
+
+        total_employee = Decimal('0')
+        total_employer = Decimal('0')
+
+        for item in items:
+            emp = item.employee
+            employee_contrib = item.nssf
+            employer_contrib = item.nssf  # Matching employer contribution (equal tiers under new NSSF Act)
+            total = employee_contrib + employer_contrib
+            total_employee += employee_contrib
+            total_employer += employer_contrib
+
+            writer.writerow([
+                emp.name,
+                emp.kra_pin or 'N/A',
+                'N/A',  # National ID — extend Employee model when needed
+                float(item.gross_salary),
+                float(employee_contrib),
+                float(employer_contrib),
+                float(total),
+            ])
+
+        # Totals row
+        writer.writerow([])
+        writer.writerow([
+            'TOTALS', '', '', '',
+            float(total_employee),
+            float(total_employer),
+            float(total_employee + total_employer),
+        ])
+
+        return response
+
+
+class SHIFScheduleView(views.APIView):
+    """
+    SHIF (Social Health Insurance Fund) Monthly Deduction Schedule.
+    Accepts: ?month=6&year=2025
+    """
+    permission_classes = [permissions.IsAuthenticated, IsHROrAdmin]
+
+    def get(self, request):
+        tenant = request.user.tenant
+        today = date.today()
+        month = int(request.query_params.get('month', today.month))
+        year  = int(request.query_params.get('year',  today.year))
+
+        response = HttpResponse(content_type='text/csv')
+        filename = f'shif_schedule_{year}_{month:02d}.csv'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Employee Name',
+            'KRA PIN',
+            'Gross Salary',
+            'SHIF Contribution (2.75%)',
+            'AHL Contribution (1.5%)',
+            'Total SHA Deductions',
+        ])
+
+        items = PayrollItem.objects.filter(
+            payroll_run__tenant=tenant,
+            payroll_run__month=month,
+            payroll_run__year=year,
+            payroll_run__status__in=['processed', 'approved', 'paid'],
+        ).select_related('employee')
+
+        total_shif = Decimal('0')
+        total_ahl  = Decimal('0')
+
+        for item in items:
+            emp = item.employee
+            total_shif += item.shif
+            total_ahl  += item.ahl
+
+            writer.writerow([
+                emp.name,
+                emp.kra_pin or 'N/A',
+                float(item.gross_salary),
+                float(item.shif),
+                float(item.ahl),
+                float(item.shif + item.ahl),
+            ])
+
+        # Totals row
+        writer.writerow([])
+        writer.writerow([
+            'TOTALS', '',
+            '',
+            float(total_shif),
+            float(total_ahl),
+            float(total_shif + total_ahl),
+        ])
+
+        return response
