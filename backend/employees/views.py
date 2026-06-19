@@ -211,14 +211,29 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             if errors and not employees_to_create:
                 return Response({"error": "No valid employees found.", "details": errors[:10]}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Upsert: update existing employees (matched by email) or create new ones
+            # Upsert: bulk update existing employees, bulk create new ones
             created_count = 0
             updated_count = 0
-            for emp_obj in employees_to_create:
-                if emp_obj.email:
-                    updated = Employee.unscoped.filter(
-                        tenant=tenant, email__iexact=emp_obj.email
-                    ).update(
+
+            if employees_to_create:
+                # Split into those with email (can match existing) and those without
+                with_email = [e for e in employees_to_create if e.email]
+                without_email = [e for e in employees_to_create if not e.email]
+
+                # Bulk update existing employees matched by email in one query
+                existing_emails = {
+                    e.lower() for e in Employee.unscoped.filter(
+                        tenant=tenant,
+                        email__in=[e.email for e in with_email]
+                    ).values_list('email', flat=True)
+                }
+
+                to_update = [e for e in with_email if e.email.lower() in existing_emails]
+                to_create = [e for e in with_email if e.email.lower() not in existing_emails] + without_email
+
+                # Bulk update via update_fields on filtered queryset
+                for emp_obj in to_update:
+                    Employee.unscoped.filter(tenant=tenant, email__iexact=emp_obj.email).update(
                         name=emp_obj.name,
                         phone=emp_obj.phone,
                         department=emp_obj.department,
@@ -228,13 +243,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                         salary_basic=emp_obj.salary_basic,
                         payment_method=emp_obj.payment_method,
                     )
-                    if updated:
-                        updated_count += 1
-                        continue
-                # No email or no existing match — create new, suppress per-row signal
-                emp_obj._skip_signal = True
-                emp_obj.save()
-                created_count += 1
+                updated_count = len(to_update)
+
+                # Bulk create new employees in a single query
+                for e in to_create:
+                    e._skip_signal = True
+                Employee.objects.bulk_create(to_create, ignore_conflicts=True)
+                created_count = len(to_create)
 
             # Send a single summary notification for the whole import
             if created_count > 0:
