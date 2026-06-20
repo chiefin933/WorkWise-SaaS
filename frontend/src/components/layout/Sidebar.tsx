@@ -20,6 +20,9 @@ import {
   Shield,
   CreditCard,
   UserCircle,
+  Receipt,
+  PiggyBank,
+  Banknote,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -31,30 +34,56 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const role = profile?.role;
   const canManagePeople = role === 'ADMIN' || role === 'HR';
+  const canManageFinance = role === 'ADMIN' || role === 'FINANCE';
+  const isCEO = role === 'ADMIN';
 
   const navItems = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    ...(canManagePeople
-      ? [{ name: 'Manager Hub', href: '/manager', icon: Briefcase }]
+    // ── CEO / Admin only ────────────────────────────────────────────────────
+    ...(isCEO
+      ? [{ name: 'CEO Dashboard', href: '/', icon: LayoutDashboard }]
       : []),
-    ...(canManagePeople ? [{ name: 'Employees', href: '/employees', icon: Users }] : []),
-    { name: 'Attendance', href: '/attendance', icon: Clock },
-    { name: 'Leave', href: '/leave', icon: Calendar },
+
+    // ── HR section ──────────────────────────────────────────────────────────
     ...(canManagePeople
       ? [
-          { name: 'Payroll', href: '/payroll', icon: DollarSign },
-          { name: 'Reports', href: '/reports', icon: FileText },
+          { name: 'HR Dashboard',  href: '/hr',        icon: Briefcase },
+          { name: 'Employees',     href: '/employees', icon: Users },
+          { name: 'Attendance',    href: '/attendance', icon: Clock },
+          { name: 'Leave',         href: '/leave',     icon: Calendar },
+          { name: 'Payroll',       href: '/payroll',   icon: DollarSign },
+          { name: 'Reports',       href: '/reports',   icon: FileText },
         ]
       : []),
-    ...(role === 'ADMIN'
+
+    // ── Finance section ─────────────────────────────────────────────────────
+    ...(canManageFinance
       ? [
-          { name: 'Audit Trail', href: '/audit', icon: Shield },
-          { name: 'Billing', href: '/settings/billing', icon: CreditCard },
+          { name: 'Finance',        href: '/finance',           icon: DollarSign },
+          { name: 'Expenses',       href: '/finance/expenses',  icon: Receipt },
+          { name: 'Budgets',        href: '/finance/budgets',   icon: PiggyBank },
+          { name: 'Petty Cash',     href: '/finance/petty-cash', icon: Banknote },
         ]
       : []),
+
+    // ── Employee self-service ────────────────────────────────────────────────
     ...(role === 'EMPLOYEE'
-      ? [{ name: 'Self Service', href: '/manager/self-service', icon: UserCircle }]
+      ? [
+          { name: 'My Dashboard',   href: '/employee',                 icon: LayoutDashboard },
+          { name: 'My Attendance',  href: '/attendance',               icon: Clock },
+          { name: 'My Leave',       href: '/leave',                    icon: Calendar },
+          { name: 'My Payslips',    href: '/manager/self-service',     icon: FileText },
+          { name: 'My Expenses',    href: '/finance/expenses',         icon: Receipt },
+        ]
       : []),
+
+    // ── Admin-only ───────────────────────────────────────────────────────────
+    ...(isCEO
+      ? [
+          { name: 'Audit Trail', href: '/audit',           icon: Shield },
+          { name: 'Billing',     href: '/settings/billing', icon: CreditCard },
+        ]
+      : []),
+
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
@@ -126,7 +155,17 @@ export default function Sidebar() {
            </nav>
            {!isCollapsed && role === 'EMPLOYEE' && (
              <div className="mt-6 rounded-xl border border-slate-800 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-slate-500">
-               Payroll, Reports &amp; Employees are managed by your HR team.
+               Your HR team manages Payroll &amp; Reports. Use the menu above for self-service.
+             </div>
+           )}
+           {!isCollapsed && role === 'FINANCE' && (
+             <div className="mt-6 rounded-xl border border-teal-800/30 bg-teal-500/5 px-4 py-3 text-xs leading-relaxed text-teal-400/80">
+               You have access to the Finance module. Contact your Admin for HR or Payroll access.
+             </div>
+           )}
+           {!isCollapsed && role === 'HR' && (
+             <div className="mt-6 rounded-xl border border-slate-800 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-slate-500">
+               You manage HR operations. Contact your Admin for Finance or Billing access.
              </div>
            )}
           {!isCollapsed && !role && (

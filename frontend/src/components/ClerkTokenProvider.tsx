@@ -1,17 +1,39 @@
 'use client';
 
 import { useAuth } from '@clerk/nextjs';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { setTokenGetter } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
 /**
- * Wires Clerk session tokens to Axios and loads the Django user profile.
- * Sets isLoading=true immediately when Clerk reports the user as signed-in,
- * closing the race-condition window where isLoading was false but user was null.
+ * Role-to-home-dashboard mapping.
+ * When a user logs in (or lands on "/"), they are redirected here.
+ */
+const ROLE_HOME: Record<string, string> = {
+  ADMIN:    '/',
+  HR:       '/hr',
+  FINANCE:  '/finance',
+  EMPLOYEE: '/employee',
+};
+
+/**
+ * Wires Clerk session tokens to Axios, loads the Django user profile,
+ * and performs a role-based redirect on first login.
+ *
+ * Redirect logic:
+ *  1. Only redirects when the user lands on "/" or comes from an invite link.
+ *  2. ADMIN/CEO → /   (main dashboard)
+ *  3. HR Manager → /hr
+ *  4. Finance Manager → /finance
+ *  5. Employee → /employee
  */
 export function ClerkTokenProvider() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
+  const router   = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const didRedirect = useRef(false);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -20,14 +42,29 @@ export function ClerkTokenProvider() {
       setTokenGetter(() => getToken());
 
       const { hasFetched, isLoading, fetchUser } = useAuthStore.getState();
-      // Only fetch once — prevents duplicate calls on hot-reload / re-renders
+
       if (!hasFetched && !isLoading) {
-        void fetchUser();
+        fetchUser().then(() => {
+          // Only redirect once per session and only on root or invite landing
+          if (didRedirect.current) return;
+          const { user } = useAuthStore.getState();
+          if (!user?.role) return;
+
+          const isInviteLanding = searchParams.get('invited') === '1';
+          const isRoot = pathname === '/';
+
+          if (isRoot || isInviteLanding) {
+            const home = ROLE_HOME[user.role] ?? '/';
+            didRedirect.current = true;
+            if (pathname !== home) router.replace(home);
+          }
+        });
       }
     } else {
+      didRedirect.current = false;
       useAuthStore.getState().clearUser();
     }
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, pathname, router, searchParams]);
 
   return null;
 }

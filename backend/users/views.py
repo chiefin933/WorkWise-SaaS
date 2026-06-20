@@ -1,4 +1,6 @@
 import uuid
+import secrets
+import string
 import requests as _http
 
 from django.conf import settings
@@ -14,6 +16,71 @@ from .models import User, Notification
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_temp_password(length: int = 12) -> str:
+    """
+    Generate a secure temporary password that meets Clerk's requirements:
+    - At least 8 characters
+    - Mix of uppercase, lowercase, digits, and special characters
+    Format: Xxxx-0000-Xx! (readable but secure)
+    """
+    alphabet = string.ascii_letters + string.digits
+    special = '!@#$%'
+    # Guarantee at least one of each required type
+    pwd = (
+        secrets.choice(string.ascii_uppercase) +
+        secrets.choice(string.ascii_lowercase) +
+        secrets.choice(string.digits) +
+        secrets.choice(special) +
+        ''.join(secrets.choice(alphabet) for _ in range(length - 4))
+    )
+    # Shuffle to avoid predictable pattern
+    pwd_list = list(pwd)
+    secrets.SystemRandom().shuffle(pwd_list)
+    return ''.join(pwd_list)
+
+
+def _create_clerk_user(email: str, password: str, first_name: str = '', last_name: str = '') -> str | None:
+    """
+    Create a user in Clerk via the Backend API and return their clerk_id.
+    Returns None if Clerk API is not configured or the call fails.
+    """
+    secret_key = getattr(settings, 'CLERK_SECRET_KEY', '')
+    if not secret_key:
+        logger.warning("CLERK_SECRET_KEY not set — skipping Clerk user creation for invite.")
+        return None
+
+    try:
+        resp = _http.post(
+            'https://api.clerk.com/v1/users',
+            headers={
+                'Authorization': f'Bearer {secret_key}',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'email_address': [email],
+                'password': password,
+                'first_name': first_name or '',
+                'last_name': last_name or '',
+                'skip_password_checks': False,
+                'skip_password_requirement': False,
+            },
+            timeout=10,
+        )
+        if resp.status_code in (200, 201):
+            clerk_id = resp.json().get('id')
+            logger.info("Clerk user created for invite: %s", email)
+            return clerk_id
+        else:
+            logger.warning(
+                "Clerk user creation failed for %s: %s %s",
+                email, resp.status_code, resp.text[:200]
+            )
+            return None
+    except Exception as exc:
+        logger.error("Clerk API call failed during invite: %s", exc)
+        return None
 
 
 def _get_client_ip(request) -> str | None:
@@ -134,16 +201,19 @@ class InviteUserView(APIView):
     def post(self, request):
         email = (request.data.get('email') or '').strip().lower()
         role = (request.data.get('role') or '').strip().upper()
+        first_name = (request.data.get('first_name') or '').strip()
+        last_name = (request.data.get('last_name') or '').strip()
 
         if not email:
             return Response({"error": "Email is required."}, status=http_status.HTTP_400_BAD_REQUEST)
-        if role not in ('HR', 'EMPLOYEE'):
-            return Response({"error": "Role must be HR or EMPLOYEE."}, status=http_status.HTTP_400_BAD_REQUEST)
+        if role not in ('HR', 'FINANCE', 'EMPLOYEE'):
+            return Response({"error": "Role must be HR, FINANCE, or EMPLOYEE."}, status=http_status.HTTP_400_BAD_REQUEST)
 
         tenant = request.user.tenant
         if not tenant:
             return Response({"error": "Your user is not linked to a workspace."}, status=http_status.HTTP_400_BAD_REQUEST)
 
+        # Check for existing active user in this tenant
         existing = User.objects.filter(email__iexact=email, tenant=tenant).first()
         if existing and existing.is_active:
             return Response(
@@ -151,49 +221,60 @@ class InviteUserView(APIView):
                 status=http_status.HTTP_400_BAD_REQUEST,
             )
         if existing and not existing.is_active:
-            return Response(
-                {"error": "An invite is already pending for this email."},
-                status=http_status.HTTP_400_BAD_REQUEST,
-            )
-        if User.objects.filter(email__iexact=email).exclude(tenant=tenant).exists():
-            # Do NOT reveal that the email exists in another tenant — that leaks
-            # cross-tenant information. Silently allow the invite to proceed;
-            # Clerk will handle duplicate email enforcement at sign-up time.
-            pass
+            # Re-send invite for pending invites
+            existing.delete()
 
+        # Generate a secure temporary password
+        temp_password = _generate_temp_password()
+
+        # Create the user in Clerk via Backend API
+        clerk_id = _create_clerk_user(email, temp_password, first_name, last_name)
+
+        # Create the Django User record
         invite_token = str(uuid.uuid4())
         invited_user = User.objects.create_user(
             email=email,
             tenant=tenant,
             role=role,
-            is_active=False,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,          # Active immediately — credentials are in the email
             invite_token=invite_token,
+            clerk_id=clerk_id,        # Linked right away if Clerk creation succeeded
         )
 
+        # Build the login URL with email pre-filled
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-        invite_link = f'{frontend_url}/auth/accept-invite?token={invite_token}&email={email}'
-        admin_name = request.user.get_full_name() or request.user.email
-        role_display = 'HR Manager' if role == 'HR' else 'Employee'
+        login_url = f'{frontend_url}/auth/login?email={email}&invited=1'
 
-        # Use the company name as the sender tag so recipients know who invited them
+        admin_name = request.user.get_full_name() or request.user.email
+        role_display = {'HR': 'HR Manager', 'FINANCE': 'Finance Manager', 'EMPLOYEE': 'Employee'}.get(role, role)
         company_from_email = f"{tenant.name} via WorkWise <noreply@workwise.co.ke>"
 
         send_mail(
             subject=f"You've been invited to join {tenant.name} on WorkWise",
             message=(
-                "Hi,\n\n"
-                f"{admin_name} has invited you to join {tenant.name} as {role_display} on WorkWise — "
-                "Kenya's HR & Payroll platform.\n\n"
-                "Click the link below to accept your invitation and create your account:\n\n"
-                f"{invite_link}\n\n"
-                f"Sign up with this email address ({email}) to activate your account.\n\n"
-                "This invitation link is unique to you — please do not share it.\n"
-                "If you did not expect this invitation, you can safely ignore this email.\n\n"
-                f"— The {tenant.name} Team"
+                f"Hi {first_name or 'there'},\n\n"
+                f"{admin_name} has added you to {tenant.name} on WorkWise as {role_display}.\n\n"
+                f"Your login credentials:\n"
+                f"  Email:    {email}\n"
+                f"  Password: {temp_password}\n\n"
+                f"Click the link below to sign in:\n"
+                f"  {login_url}\n\n"
+                f"For security, please change your password after your first login:\n"
+                f"  Go to Settings → Security → Change Password\n\n"
+                f"This email is confidential. Do not share your password with anyone.\n\n"
+                f"— The {tenant.name} Team\n"
+                f"Powered by WorkWise"
             ),
             from_email=company_from_email,
             recipient_list=[email],
             fail_silently=False,
+        )
+
+        logger.info(
+            "Invited user %s as %s to tenant %s (clerk_id=%s)",
+            email, role, tenant.name, clerk_id[:8] + '...' if clerk_id else 'None'
         )
 
         return Response(
@@ -201,7 +282,8 @@ class InviteUserView(APIView):
                 "id": str(invited_user.id),
                 "email": invited_user.email,
                 "role": invited_user.role,
-                "invite_pending": True,
+                "clerk_linked": clerk_id is not None,
+                "message": f"Invitation sent to {email} with login credentials.",
             },
             status=http_status.HTTP_201_CREATED,
         )

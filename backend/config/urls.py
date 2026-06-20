@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/mpesa/stk-push/', MpesaExpressPushView.as_view(), name='stk_push'),
     path('api/mpesa/stk-push-callback/', MpesaExpressCallbackView.as_view(), name='stk_callback'),
     path('api/mpesa/stk-push/status/', MpesaExpressStatusView.as_view(), name='stk_status'),
+    path('api/finance/', include('finance.urls')),
     path('api/audit-trail/', AuditTrailView.as_view(), name='audit-trail'),
     path('api/payroll/<uuid:payroll_run_id>/export/<str:export_type>/', StatutoryExportView.as_view(), name='statutory-export'),
     path('api/', include(router.urls)),

@@ -140,9 +140,124 @@ export interface TeamMember {
   email: string;
   first_name?: string;
   last_name?: string;
-  role: 'ADMIN' | 'HR' | 'EMPLOYEE';
+  role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
   is_active: boolean;
   invite_pending: boolean;
+}
+
+// ── Finance Module Types ──────────────────────────────────────────────────────
+
+export type ExpenseCategory =
+  | 'travel' | 'accommodation' | 'meals' | 'office'
+  | 'client' | 'utilities' | 'training' | 'medical' | 'other';
+
+export type ExpenseStatus = 'pending' | 'approved' | 'rejected' | 'paid';
+
+export interface ExpenseClaim {
+  id: string;
+  employee: string;
+  employee_name: string;
+  employee_dept: string;
+  submitted_by: string;
+  submitted_by_name: string;
+  title: string;
+  category: ExpenseCategory;
+  category_display: string;
+  amount: number;
+  currency: string;
+  expense_date: string;
+  description: string;
+  receipt_url: string;
+  status: ExpenseStatus;
+  status_display: string;
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  review_comment: string;
+  reviewed_at: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentBudget {
+  id: string;
+  department: string;
+  period_month: number;
+  period_year: number;
+  budget_amount: number;
+  notes: string;
+  created_by: string;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BudgetUtilization {
+  department: string;
+  budget: number;
+  payroll_cost: number;
+  expense_cost: number;
+  actual_spend: number;
+  remaining: number;
+  utilization_pct: number;
+  over_budget: boolean;
+}
+
+export interface BudgetUtilizationResponse {
+  month: number;
+  year: number;
+  departments: BudgetUtilization[];
+}
+
+export interface PettyCashFund {
+  id: string;
+  name: string;
+  opening_balance: number;
+  current_balance: number;
+  custodian: string;
+  custodian_name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PettyCashStatus = 'pending' | 'approved' | 'rejected' | 'disbursed';
+export type PettyCashType = 'request' | 'topup' | 'replenish';
+
+export interface PettyCashTransaction {
+  id: string;
+  fund: string;
+  transaction_type: PettyCashType;
+  type_display: string;
+  requested_by: string;
+  requested_by_name: string;
+  amount: number;
+  purpose: string;
+  category: string;
+  receipt_url: string;
+  status: PettyCashStatus;
+  status_display: string;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approval_comment: string;
+  approved_at: string | null;
+  disbursed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinancialSummary {
+  month: number;
+  year: number;
+  payroll_cost: number;
+  total_expenses: number;
+  pending_expenses: number;
+  pending_count: number;
+  petty_balance: number;
+  total_budget: number;
+  total_actual: number;
+  budget_utilization_pct: number;
+  expenses_by_category: Array<{ category: string; total: number }>;
 }
 
 export interface ApiErrorResponse {
@@ -157,7 +272,7 @@ export interface AuthUser {
   email?: string;
   first_name?: string;
   last_name?: string;
-  role?: 'ADMIN' | 'HR' | 'EMPLOYEE';
+  role?: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
   company_name?: string;
   plan?: string;
   max_employees?: number;

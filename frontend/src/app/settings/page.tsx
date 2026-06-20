@@ -1,10 +1,12 @@
 'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GlassCard } from '@/components/premium/GlassCard';
 import { useAuthStore } from '@/lib/store';
+import { useUser } from '@clerk/nextjs';
 import api from '@/lib/api';
 import type { TeamMember } from '@/lib/types';
 import { 
@@ -22,8 +24,102 @@ import {
   Trash2,
   Loader2,
   AlertCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+// ── Change Password Form ──────────────────────────────────────────────────────
+function ChangePasswordForm() {
+  const { user: clerkUser } = useUser();
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    if (newPwd.length < 8) {
+      setMessage({ text: 'New password must be at least 8 characters.', type: 'error' });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setMessage({ text: 'Passwords do not match.', type: 'error' });
+      return;
+    }
+    setLoading(true);
+    try {
+      await clerkUser?.updatePassword({ currentPassword: currentPwd, newPassword: newPwd });
+      setMessage({ text: 'Password changed successfully.', type: 'success' });
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { message: string }[] };
+      setMessage({
+        text: clerkErr.errors?.[0]?.message || 'Failed to change password.',
+        type: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 max-w-sm">
+      <div className="relative">
+        <input
+          type={showCurrent ? 'text' : 'password'}
+          value={currentPwd}
+          onChange={e => setCurrentPwd(e.target.value)}
+          placeholder="Current password"
+          required
+          className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        <button type="button" tabIndex={-1} onClick={() => setShowCurrent(v => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+          {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      <div className="relative">
+        <input
+          type={showNew ? 'text' : 'password'}
+          value={newPwd}
+          onChange={e => setNewPwd(e.target.value)}
+          placeholder="New password (min. 8 characters)"
+          required
+          className="w-full px-4 py-2.5 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        <button type="button" tabIndex={-1} onClick={() => setShowNew(v => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+          {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      <input
+        type="password"
+        value={confirmPwd}
+        onChange={e => setConfirmPwd(e.target.value)}
+        placeholder="Confirm new password"
+        required
+        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+      />
+      {message && (
+        <p className={`text-sm font-semibold ${message.type === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>
+          {message.text}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={loading}
+        className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-sm font-bold transition-all flex items-center gap-2"
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update Password'}
+      </button>
+    </form>
+  );
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -98,7 +194,9 @@ export default function SettingsPage() {
   }, [payrollConfig]);
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'HR' | 'EMPLOYEE'>('EMPLOYEE');
+  const [inviteFirstName, setInviteFirstName] = useState('');
+  const [inviteLastName, setInviteLastName] = useState('');
+  const [inviteRole, setInviteRole] = useState<'HR' | 'FINANCE' | 'EMPLOYEE'>('EMPLOYEE');
   const [inviteError, setInviteError] = useState('');
   const [inviteToast, setInviteToast] = useState('');
   const [isInviting, setIsInviting] = useState(false);
@@ -178,11 +276,18 @@ export default function SettingsPage() {
 
     setIsInviting(true);
     try {
-      await api.post('/users/invite/', { email, role: inviteRole });
+      await api.post('/users/invite/', {
+        email,
+        role: inviteRole,
+        first_name: inviteFirstName.trim(),
+        last_name: inviteLastName.trim(),
+      });
       setInviteEmail('');
+      setInviteFirstName('');
+      setInviteLastName('');
       setInviteRole('EMPLOYEE');
       await queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      showInviteToast(`Invite sent to ${email}`);
+      showInviteToast(`✓ Login credentials sent to ${email}`);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string; detail?: string } } };
       setInviteError(error.response?.data?.error || error.response?.data?.detail || 'Could not send invite.');
@@ -208,12 +313,14 @@ export default function SettingsPage() {
   const roleBadgeClass = (role: TeamMember['role']) => {
     if (role === 'ADMIN') return 'bg-slate-100 text-slate-700 border-slate-300';
     if (role === 'HR') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (role === 'FINANCE') return 'bg-blue-50 text-blue-700 border-blue-200';
+    return 'bg-amber-50 text-amber-700 border-amber-200';
   };
 
   const roleLabel = (role: TeamMember['role']) => {
     if (role === 'ADMIN') return 'Admin';
     if (role === 'HR') return 'HR Manager';
+    if (role === 'FINANCE') return 'Finance Manager';
     return 'Employee';
   };
 
@@ -429,30 +536,53 @@ export default function SettingsPage() {
 
                 <form
                   onSubmit={handleInvite}
-                  className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_180px_auto] dark:border-slate-800 dark:bg-slate-900/40"
+                  className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40"
                 >
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                    placeholder="colleague@company.co.ke"
-                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                  />
-                  <select
-                    value={inviteRole}
-                    onChange={(event) => setInviteRole(event.target.value as 'HR' | 'EMPLOYEE')}
-                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-                  >
-                    <option value="HR">HR Manager</option>
-                    <option value="EMPLOYEE">Employee</option>
-                  </select>
-                  <Button
-                    type="submit"
-                    disabled={isInviting}
-                    className="h-11 rounded-xl bg-slate-950 px-5 font-bold text-white hover:bg-slate-900"
-                  >
-                    {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4" /> Send Invite</>}
-                  </Button>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    Add Team Member — login credentials will be emailed automatically
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <input
+                      type="text"
+                      value={inviteFirstName}
+                      onChange={(e) => setInviteFirstName(e.target.value)}
+                      placeholder="First name"
+                      className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={inviteLastName}
+                      onChange={(e) => setInviteLastName(e.target.value)}
+                      placeholder="Last name"
+                      className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-[1fr_180px_auto]">
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="colleague@company.co.ke"
+                      required
+                      className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    />
+                    <select
+                      value={inviteRole}
+                      onChange={(event) => setInviteRole(event.target.value as 'HR' | 'FINANCE' | 'EMPLOYEE')}
+                      className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 outline-none focus:border-slate-400 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+                    >
+                      <option value="HR">HR Manager</option>
+                      <option value="FINANCE">Finance Manager</option>
+                      <option value="EMPLOYEE">Employee</option>
+                    </select>
+                    <Button
+                      type="submit"
+                      disabled={isInviting}
+                      className="h-11 rounded-xl bg-teal-600 px-5 font-bold text-white hover:bg-teal-700"
+                    >
+                      {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4" /> Send Credentials</>}
+                    </Button>
+                  </div>
                 </form>
 
                 {inviteError && (
@@ -542,14 +672,35 @@ export default function SettingsPage() {
 
             {activeTab === 'security' && (
                <div className="space-y-6">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Security & Access</h3>
-                  <div className="space-y-6">
-                     <div className="flex items-start gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                        <Lock className="h-6 w-6 text-slate-400 mt-1" />
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Security &amp; Access</h3>
+                  <div className="space-y-4">
+                     {/* Change Password */}
+                     <div className="flex items-start gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <Lock className="h-6 w-6 text-teal-500 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                           <div className="font-bold text-slate-900 dark:text-white mb-1">Change Password</div>
+                           <p className="text-sm text-slate-500 mb-4">
+                             Update your password. If you were invited, change the temporary password you received by email.
+                           </p>
+                           <ChangePasswordForm />
+                        </div>
+                     </div>
+                     {/* 2FA */}
+                     <div className="flex items-start gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <Shield className="h-6 w-6 text-slate-400 mt-0.5 shrink-0" />
                         <div>
-                           <div className="font-bold text-slate-900 dark:text-white">Two-Factor Authentication</div>
-                           <p className="text-sm text-slate-500 mb-4">Add an extra layer of security to your admin account.</p>
-                           <Button variant="outline" className="rounded-xl border-slate-200">Enable 2FA</Button>
+                           <div className="font-bold text-slate-900 dark:text-white mb-1">Two-Factor Authentication</div>
+                           <p className="text-sm text-slate-500 mb-4">
+                             Add an extra layer of security. Managed via your Clerk account settings.
+                           </p>
+                           <a
+                             href="https://accounts.clerk.dev/user"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-all"
+                           >
+                             Manage Security Settings →
+                           </a>
                         </div>
                      </div>
                   </div>

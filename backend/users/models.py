@@ -29,6 +29,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=50, choices=[
         ('ADMIN', 'Admin'),
         ('HR', 'HR Manager'),
+        ('FINANCE', 'Finance Manager'),
         ('EMPLOYEE', 'Employee'),
     ], default='EMPLOYEE')
     clerk_id = models.CharField(max_length=255, unique=True, null=True, blank=True)

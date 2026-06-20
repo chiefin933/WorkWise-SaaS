@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'payslips',
     'reports',
     'django_daraja',
+    'finance',
 ]
 
 MIDDLEWARE = [
