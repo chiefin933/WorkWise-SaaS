@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('leave', '0003_add_reason_to_leave'),
-        ('employees', '__latest__'),
+        ('employees', '0005_alter_employee_bank_details_alter_employee_kra_pin_and_more'),
         ('tenants', '__latest__'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

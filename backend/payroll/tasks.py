@@ -95,6 +95,15 @@ def process_payroll_run(self, payroll_run_id: str, tenant_id: str):
                 total_overtime=Sum('overtime_hours'),
             )
 
+            from django.db import models as _dj_models
+            # Split overtime: public holiday/Sunday (2x) vs weekday (1.5x)
+            ph_overtime_hours = float(
+                attendance_qs.filter(
+                    _dj_models.Q(is_public_holiday=True) | _dj_models.Q(is_sunday=True)
+                ).aggregate(t=Sum('overtime_hours'))['t'] or 0
+            )
+            weekday_overtime_hours = max(0, float(agg['total_overtime'] or 0) - ph_overtime_hours)
+
             # Calculate unpaid leave overlap within the payroll month
             leaves = Leave.objects.filter(
                 employee=emp,
@@ -110,10 +119,11 @@ def process_payroll_run(self, payroll_run_id: str, tenant_id: str):
                 unpaid_leave_days += (overlap_end - overlap_start).days + 1
 
             attendance_data = {
-                'days_worked': agg['days_worked'] or 0,
-                'hours_worked': float(agg['total_hours'] or 0),
-                'overtime_hours': float(agg['total_overtime'] or 0),
-                'unpaid_leave_days': unpaid_leave_days,
+                'days_worked':                    agg['days_worked'] or 0,
+                'hours_worked':                   float(agg['total_hours'] or 0),
+                'overtime_hours':                 weekday_overtime_hours,
+                'public_holiday_overtime_hours':  ph_overtime_hours,
+                'unpaid_leave_days':              unpaid_leave_days,
             }
 
             calc = engine.calculate_employee_payroll(emp, attendance_data)

@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from django.db import models
 from tenants.models import Tenant
 from employees.models import Employee
@@ -6,18 +7,24 @@ from core.tenant_models import TenantScopedModel
 
 class PayrollRun(TenantScopedModel):
     STATUS_CHOICES = [
-        ('draft', 'Draft'),
+        ('draft',     'Draft'),
         ('processed', 'Processed'),
-        ('approved', 'Approved'),
-        ('paid', 'Paid'),
+        ('approved',  'Approved'),
+        ('paid',      'Paid'),
+        ('reversed',  'Reversed'),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payroll_runs')
-    month = models.IntegerField()
-    year = models.IntegerField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
-    
+    id       = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant   = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payroll_runs')
+    month    = models.IntegerField()
+    year     = models.IntegerField()
+    status   = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    reversed_by = models.OneToOneField(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='reversal_of',
+        help_text='Points to the corrective run that reversed this run.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,30 +72,48 @@ class PayrollItem(models.Model):
         ]
 
 class PayrollConfig(TenantScopedModel):
-    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='payroll_config')
-    nssf_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0.0600)
-    nssf_cap = models.DecimalField(max_digits=10, decimal_places=2, default=4320.00)
-    shif_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0.0275)
-    shif_min = models.DecimalField(max_digits=10, decimal_places=2, default=300.00)
-    ahl_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0.0150)
-    personal_relief = models.DecimalField(max_digits=10, decimal_places=2, default=2400.00)
-    paye_bands = models.JSONField(default=list) 
-    # e.g. [{"limit": 24000, "rate": 0.10}, {"limit": 8333, "rate": 0.25}, ...]
+    NSSF_ACT_CHOICES = [
+        ('new', 'New NSSF Act 2013 (Tier I + Tier II)'),
+        ('old', 'Old NSSF Act (Flat KES 200)'),
+    ]
+
+    tenant          = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='payroll_config')
+
+    # ── NSSF ──────────────────────────────────────────────────────────────────
+    # nssf_act: 'new' = NSSF Act 2013 Tier I+II; 'old' = flat KES 200
+    # Courts have issued injunctions on the new Act — toggle as needed
+    nssf_act        = models.CharField(max_length=5, choices=NSSF_ACT_CHOICES, default='new')
+    nssf_rate       = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.0600'))
+    nssf_lel        = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('7000.00'),
+                                          help_text='NSSF Lower Earnings Limit (Tier I ceiling)')
+    nssf_uel        = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('36000.00'),
+                                          help_text='NSSF Upper Earnings Limit (Tier II ceiling)')
+    nssf_cap        = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('4320.00'),
+                                          help_text='Legacy cap field (kept for reference; engine uses lel/uel)')
+
+    # ── SHIF ──────────────────────────────────────────────────────────────────
+    shif_rate       = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.0275'))
+    shif_min        = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('300.00'),
+                                          help_text='Minimum SHIF deduction per month (KES 300)')
+
+    # ── Housing Levy ──────────────────────────────────────────────────────────
+    ahl_rate        = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal('0.0150'))
+
+    # ── PAYE ──────────────────────────────────────────────────────────────────
+    personal_relief = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('2400.00'))
+    paye_bands      = models.JSONField(default=list,
+                                       help_text='[{"limit": 24000, "rate": 0.10}, ...] — empty = KRA 2024/2025 defaults')
 
     # ── Attendance / Geofencing ───────────────────────────────────────────────
-    # When all three are set, clock-in validates that the employee's submitted
-    # GPS coordinates fall within geofence_radius_meters of the office.
-    # A breach logs a warning and includes a 'geofence_warning' field in the
-    # clock-in response — it does NOT block the clock-in.
-    office_latitude         = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    office_longitude        = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    geofence_radius_meters  = models.PositiveIntegerField(
+    office_latitude        = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    office_longitude       = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    geofence_radius_meters = models.PositiveIntegerField(
         null=True, blank=True,
-        help_text="Geofence radius in metres around the office coordinates. Leave blank to disable.",
+        help_text='Geofence radius in metres around the office. Leave blank to disable.',
     )
 
     def __str__(self):
-        return f"Payroll Config - {self.tenant.name}"
+        return f"Payroll Config — {self.tenant.name}"
 
 
 class MpesaTransaction(models.Model):

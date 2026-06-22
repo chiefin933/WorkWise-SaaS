@@ -176,6 +176,95 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
         )
         return Response({"message": "Payroll run approved successfully.", "status": "approved"})
 
+    # ── Reverse ───────────────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'])
+    def reverse(self, request, pk=None):
+        """
+        Reverse an approved or paid payroll run.
+
+        This creates a fresh draft run for the same period so it can be
+        corrected and reprocessed. The original run is marked 'reversed'.
+        If a journal entry was auto-posted to the finance books on approval,
+        it is automatically reversed as well.
+        """
+        from django.db import transaction as db_transaction
+
+        payroll_run = self.get_object()
+
+        if payroll_run.status not in ('approved', 'paid'):
+            return Response(
+                {'error': 'Only approved or paid payroll runs can be reversed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check a reversal doesn't already exist
+        if hasattr(payroll_run, 'reversed_by') and payroll_run.reversed_by:
+            return Response(
+                {'error': 'This payroll run has already been reversed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with db_transaction.atomic():
+            # 1. Create a new draft run for the same period
+            corrective_run = PayrollRun.objects.create(
+                tenant=payroll_run.tenant,
+                month=payroll_run.month,
+                year=payroll_run.year,
+                status='draft',
+            )
+
+            # 2. Mark the original run as reversed, linked to the corrective run
+            payroll_run.reversed_by = corrective_run
+            payroll_run.status = 'reversed'
+            payroll_run.save(update_fields=['status', 'reversed_by', 'updated_at'])
+
+            # 3. Reverse the finance books journal entry if one was auto-posted
+            try:
+                import calendar as _cal
+                from finance.books_models import JournalEntry
+                ref = f"PR-{payroll_run.year}-{payroll_run.month:02d}"
+                je = JournalEntry.objects.filter(
+                    tenant=payroll_run.tenant,
+                    reference=ref,
+                    source='PAYROLL',
+                    status='POSTED',
+                ).first()
+                if je:
+                    je.reverse(
+                        created_by=request.user,
+                        description=(
+                            f"Reversal of payroll run "
+                            f"{_cal.month_name[payroll_run.month]} {payroll_run.year} "
+                            f"— corrective run created"
+                        ),
+                    )
+                    logger.info(
+                        "Finance JE %s reversed as part of payroll run %s reversal",
+                        je.reference, payroll_run.id,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Could not reverse finance JE for payroll run %s: %s",
+                    payroll_run.id, exc,
+                )
+
+        logger.info(
+            "Payroll run %s reversed by %s. Corrective run %s created.",
+            payroll_run.id, request.user.email, corrective_run.id,
+        )
+
+        return Response({
+            'message': (
+                f"Payroll run for {payroll_run.month}/{payroll_run.year} has been reversed. "
+                f"A new draft run has been created — correct and reprocess it."
+            ),
+            'original_run_id':   str(payroll_run.id),
+            'original_status':   'reversed',
+            'corrective_run_id': str(corrective_run.id),
+            'corrective_status': 'draft',
+        })
+
     # ── Mark Paid ─────────────────────────────────────────────────────────────
 
     @action(detail=True, methods=['post'], url_path='mark-paid')

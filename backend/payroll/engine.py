@@ -81,9 +81,16 @@ class PayrollEngine:
         # Allowances
         allowances_total = sum(Decimal(str(v)) for v in employee.allowances.values()) if employee.allowances else Decimal('0.00')
         
-        # Overtime
+        # Overtime — Kenya Employment Act rates:
+        # 1.5x for weekday overtime, 2.0x for Sunday and public holiday overtime
+        # The payroll task passes aggregated overtime split by type:
+        #   'overtime_hours'            → weekday overtime (1.5x)
+        #   'public_holiday_overtime_hours' → Sunday/public holiday overtime (2.0x)
         hourly_rate = salary / Decimal('160') if employee.employment_type == 'monthly' else base
-        overtime_pay = Decimal(str(aggregated_attendance.get('overtime_hours', 0))) * hourly_rate * Decimal('1.5')
+        weekday_overtime  = Decimal(str(aggregated_attendance.get('overtime_hours', 0)))
+        holiday_overtime  = Decimal(str(aggregated_attendance.get('public_holiday_overtime_hours', 0)))
+        overtime_pay = (weekday_overtime * hourly_rate * Decimal('1.5')) + \
+                       (holiday_overtime * hourly_rate * Decimal('2.0'))
         
         # Unpaid Leave
         unpaid_leave_days = Decimal(str(aggregated_attendance.get('unpaid_leave_days', 0)))

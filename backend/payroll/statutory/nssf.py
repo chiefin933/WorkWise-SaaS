@@ -1,30 +1,67 @@
 from decimal import Decimal, ROUND_HALF_UP
 
+
 def clamp_decimal(value: float | Decimal) -> Decimal:
     return Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-def calculate_nssf(gross_pay: Decimal) -> dict:
+
+def calculate_nssf_new_act(
+    gross_pay: Decimal,
+    lel: Decimal = Decimal('7000.00'),
+    uel: Decimal = Decimal('36000.00'),
+    rate: Decimal = Decimal('0.06'),
+) -> dict:
     """
-    Calculates Tier I and Tier II NSSF contributions (6% statutory rate).
-    Limits: LEL = 7,000, UEL = 36,000
+    New NSSF Act 2013 — Tier I + Tier II contributions.
+    Tier I: 6% of earnings up to LEL (max KES 420 employee, KES 420 employer)
+    Tier II: 6% of earnings between LEL and UEL (max KES 1,740 employee + employer)
+    Both employee and employer contribute equally (1:1 matching).
+    LEL and UEL are configurable.
     """
-    lel = Decimal('7000.00')
-    uel = Decimal('36000.00')
-    rate = Decimal('0.06')
+    tier_1_earnings  = min(gross_pay, lel)
+    tier_1_employee  = clamp_decimal(tier_1_earnings * rate)
 
-    # Tier 1: 6% of pay up to LEL (Max 420)
-    tier_1_earnings = min(gross_pay, lel)
-    tier_1_employee = tier_1_earnings * rate
+    tier_2_earnings  = max(Decimal('0.00'), min(gross_pay, uel) - lel)
+    tier_2_employee  = clamp_decimal(tier_2_earnings * rate)
 
-    # Tier 2: 6% of pay between LEL and UEL (Max 1740)
-    tier_2_earnings = max(Decimal('0.00'), min(gross_pay, uel) - lel)
-    tier_2_employee = tier_2_earnings * rate
-
-    total_nssf = tier_1_employee + tier_2_employee
+    total_employee   = clamp_decimal(tier_1_employee + tier_2_employee)
 
     return {
-        "tier_1": clamp_decimal(tier_1_employee),
-        "tier_2": clamp_decimal(tier_2_employee),
-        "total_employee": clamp_decimal(total_nssf),
-        "total_employer": clamp_decimal(total_nssf)  # 1:1 Matching
+        'act':            'new',
+        'tier_1':         tier_1_employee,
+        'tier_2':         tier_2_employee,
+        'total_employee': total_employee,
+        'total_employer': total_employee,   # employer matches 1:1
     }
+
+
+def calculate_nssf_old_act() -> dict:
+    """
+    Old NSSF Act (pre-2013) — flat KES 200 employee / KES 200 employer.
+    Still used by some companies pending court resolution of the new Act.
+    """
+    flat = Decimal('200.00')
+    return {
+        'act':            'old',
+        'tier_1':         flat,
+        'tier_2':         Decimal('0.00'),
+        'total_employee': flat,
+        'total_employer': flat,
+    }
+
+
+def calculate_nssf(
+    gross_pay: Decimal,
+    act: str = 'new',
+    lel: Decimal = Decimal('7000.00'),
+    uel: Decimal = Decimal('36000.00'),
+    rate: Decimal = Decimal('0.06'),
+) -> dict:
+    """
+    Dispatcher: choose between old and new NSSF Act based on PayrollConfig.nssf_act.
+    Default is 'new' (NSSF Act 2013 Tier I + Tier II).
+    Set act='old' for companies using the flat KES 200 contribution.
+    """
+    if act == 'old':
+        return calculate_nssf_old_act()
+    return calculate_nssf_new_act(gross_pay, lel=lel, uel=uel, rate=rate)
