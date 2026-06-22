@@ -5,11 +5,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useTheme } from 'next-themes';
 import Sidebar from './Sidebar';
-import { Search, Sun, Moon, Users, Loader2, X } from 'lucide-react';
+import { Search, Sun, Moon, Users, Loader2, X, AlertTriangle } from 'lucide-react';
 import NotificationsPanel from './NotificationsPanel';
 import HelpPanel from './HelpPanel';
 import ProfileDropdown from './ProfileDropdown';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
+import Link from 'next/link';
 
 // ── Search types ──────────────────────────────────────────────────────────────
 interface SearchResult {
@@ -237,6 +239,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => { setIsMounted(true); }, []);
   const { theme, setTheme } = useTheme();
   const isAuthPage = pathname.startsWith('/auth');
+  const { user } = useAuthStore();
+
+  // Compute days remaining on trial
+  const trialDaysLeft = (() => {
+    if (!user?.trial_ends_at || user?.subscription_status !== 'TRIAL') return null;
+    const diff = new Date(user.trial_ends_at).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  })();
+  const showTrialBanner = trialDaysLeft !== null && trialDaysLeft <= 7;
 
   useEffect(() => {
     if (!isAuthPage && isLoaded && !isSignedIn) {
@@ -284,6 +295,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-8 relative z-10 custom-scrollbar">
+          {/* Trial expiry warning banner */}
+          {showTrialBanner && (
+            <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium ${
+              trialDaysLeft === 0
+                ? 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                : 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300'
+            }`}>
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <span className="flex-1">
+                {trialDaysLeft === 0
+                  ? 'Your free trial has ended. Upgrade now to keep using WorkWise.'
+                  : `Your free trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'}. Upgrade to keep uninterrupted access.`
+                }
+              </span>
+              <Link
+                href="/settings/billing"
+                className="shrink-0 px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors"
+              >
+                Upgrade Now
+              </Link>
+            </div>
+          )}
           <div className="max-w-7xl mx-auto h-full">
             {children}
           </div>

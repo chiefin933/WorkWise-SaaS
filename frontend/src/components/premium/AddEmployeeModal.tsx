@@ -21,6 +21,10 @@ interface EmployeeFormData {
   department: string;
   job_title: string;
   kra_pin: string;
+  national_id: string;
+  nssf_number: string;
+  shif_number: string;
+  payroll_number: string;
   employment_type: string;
   salary_basic: string;
   payment_method: string;
@@ -34,31 +38,48 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
     department: '',
     job_title: '',
     kra_pin: '',
+    national_id: '',
+    nssf_number: '',
+    shif_number: '',
+    payroll_number: '',
     employment_type: 'monthly',
     salary_basic: '',
     payment_method: 'bank',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [kraPinError, setKraPinError] = useState('');
+
+  // KRA PIN format: A001234567X (letter + 9 digits + letter)
+  const KRA_PIN_REGEX = /^[A-Z]\d{9}[A-Z]$/;
+
+  const validateKraPin = (pin: string) => {
+    if (!pin) return true; // optional field
+    if (!KRA_PIN_REGEX.test(pin.toUpperCase())) {
+      setKraPinError('KRA PIN must be in format A001234567X (letter, 9 digits, letter)');
+      return false;
+    }
+    setKraPinError('');
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateKraPin(formData.kra_pin)) return;
     setLoading(true);
     setError('');
 
     try {
-      await api.post('/employees/', formData);
+      await api.post('/employees/', {
+        ...formData,
+        kra_pin: formData.kra_pin ? formData.kra_pin.toUpperCase() : '',
+      });
       onSuccess();
       onClose();
       setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        department: '',
-        job_title: '',
-        kra_pin: '',
-        employment_type: 'monthly',
-        salary_basic: '',
+        name: '', email: '', phone: '', department: '', job_title: '',
+        kra_pin: '', national_id: '', nssf_number: '', shif_number: '',
+        payroll_number: '', employment_type: 'monthly', salary_basic: '',
         payment_method: 'bank',
       });
     } catch (error) {
@@ -159,9 +180,55 @@ export function AddEmployeeModal({ isOpen, onClose, onSuccess }: AddEmployeeModa
                     <label className="text-sm font-semibold text-slate-700 ml-1">KRA PIN</label>
                     <input
                       value={formData.kra_pin}
-                      onChange={(e) => setFormData({ ...formData, kra_pin: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all"
+                      onChange={(e) => {
+                        setFormData({ ...formData, kra_pin: e.target.value.toUpperCase() });
+                        if (kraPinError) validateKraPin(e.target.value);
+                      }}
+                      onBlur={(e) => validateKraPin(e.target.value)}
+                      className={`w-full px-4 py-3 bg-slate-50 border rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all uppercase ${kraPinError ? 'border-red-400' : 'border-slate-200'}`}
                       placeholder="A001234567X"
+                      maxLength={11}
+                    />
+                    {kraPinError && <p className="text-xs text-red-500 ml-1">{kraPinError}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 ml-1">National ID / Passport</label>
+                    <input
+                      value={formData.national_id}
+                      onChange={(e) => setFormData({ ...formData, national_id: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all"
+                      placeholder="12345678"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 ml-1">NSSF Number</label>
+                    <input
+                      value={formData.nssf_number}
+                      onChange={(e) => setFormData({ ...formData, nssf_number: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all"
+                      placeholder="NSSF membership number"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 ml-1">SHIF Number</label>
+                    <input
+                      value={formData.shif_number}
+                      onChange={(e) => setFormData({ ...formData, shif_number: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all"
+                      placeholder="SHIF membership number"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 ml-1">Payroll Number</label>
+                    <input
+                      value={formData.payroll_number}
+                      onChange={(e) => setFormData({ ...formData, payroll_number: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 focus:bg-white outline-none text-slate-900 transition-all"
+                      placeholder="Internal payroll number"
                     />
                   </div>
                   <div className="space-y-2">

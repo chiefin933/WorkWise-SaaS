@@ -121,7 +121,8 @@ class MpesaTransaction(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('success', 'Success'),
-        ('failed', 'Failed'),
+        ('failed',  'Failed'),
+        ('timeout', 'Timeout'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

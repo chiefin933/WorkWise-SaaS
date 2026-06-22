@@ -36,6 +36,7 @@ export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<'timecard' | 'matrix' | 'directory'>('timecard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [thisWeekOnly, setThisWeekOnly] = useState(false);
   const [clockLocation, setClockLocation] = useState('Office');
   const [clocking, setClocking] = useState(false);
   const queryClient = useQueryClient();
@@ -88,11 +89,20 @@ export default function AttendancePage() {
     log => log.employee_name === myEmployee?.name && log.date === todayStr
   );
 
-  const filteredLogs = logs?.filter(
-    (log) =>
+  // Compute this-week date range
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay() + 1); // Monday
+  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+  const endOfWeekStr = todayStr;
+
+  const filteredLogs = logs?.filter((log) => {
+    const matchesSearch =
       log.employee_name?.toLowerCase().includes(search.toLowerCase()) ||
-      log.date.includes(search)
-  );
+      log.date.includes(search);
+    const matchesWeek = !thisWeekOnly || (log.date >= startOfWeekStr && log.date <= endOfWeekStr);
+    return matchesSearch && matchesWeek;
+  });
 
   const filteredMatrix = presenceMatrix?.filter(
     (item) =>
@@ -431,11 +441,16 @@ export default function AttendancePage() {
               />
             </div>
             <div className="flex items-center gap-3">
-               <Button variant="ghost" className="text-slate-500 gap-2 px-4 rounded-xl">
+               <Button
+                 variant="ghost"
+                 onClick={() => setThisWeekOnly(v => !v)}
+                 className={`gap-2 px-4 rounded-xl text-sm font-bold transition-all ${
+                   thisWeekOnly
+                     ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
+                     : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                 }`}
+               >
                  <Calendar className="h-4 w-4" /> This Week
-               </Button>
-               <Button variant="ghost" className="text-slate-500 gap-2 px-4 rounded-xl">
-                 <Filter className="h-4 w-4" /> Advanced
                </Button>
             </div>
           </GlassCard>

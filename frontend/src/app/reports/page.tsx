@@ -31,7 +31,7 @@ const reportCategories = [
     title: 'Financial Reports',
     reports: [
       { id: 'payroll_summary', name: 'Payroll Summary', icon: PieChart, description: 'Total cost to company and net pay analysis.' },
-      { id: 'statutory_returns', name: 'Statutory Returns', icon: ShieldCheck, description: 'NHIF, NSSF and PAYE compliance files.' },
+      { id: 'statutory_returns', name: 'Statutory Returns', icon: ShieldCheck, description: 'SHIF, NSSF and PAYE compliance files.' },
       { id: 'expense_tracking', name: 'Expense Tracking', icon: TrendingUp, description: 'Reimbursements and allowances breakdown.' }
     ]
   },

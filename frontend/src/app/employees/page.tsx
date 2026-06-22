@@ -45,10 +45,10 @@ const STATUS_OPTIONS = [
 
 const EMPLOYMENT_TYPE_OPTIONS = [
   { value: '', label: 'All types' },
-  { value: 'full_time', label: 'Full-time' },
-  { value: 'part_time', label: 'Part-time' },
-  { value: 'contract', label: 'Contract' },
-  { value: 'intern', label: 'Intern' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'weekly',  label: 'Weekly' },
+  { value: 'daily',   label: 'Daily' },
+  { value: 'hourly',  label: 'Hourly' },
 ];
 
 // ── Filter panel component ────────────────────────────────────────────────────

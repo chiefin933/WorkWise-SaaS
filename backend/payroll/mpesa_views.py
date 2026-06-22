@@ -50,8 +50,7 @@ class MpesaB2CResultView(APIView):
 
     def post(self, request):
         try:
-            print("🔔 M-Pesa callback received:")
-            print(json.dumps(request.data, indent=2))
+            logger.debug("M-Pesa B2C result callback received: %s", json.dumps(request.data))
 
             result = request.data.get("Result", {})
             conversation_id = result.get("ConversationID", "")
@@ -84,8 +83,7 @@ class MpesaB2CTimeoutView(APIView):
 
     def post(self, request):
         try:
-            print("⏰ M-Pesa timeout callback received:")
-            print(request.data)
+            logger.debug("M-Pesa B2C timeout callback received: %s", request.data)
 
             result = request.data.get("Result", {})
             conversation_id = result.get("ConversationID", "")

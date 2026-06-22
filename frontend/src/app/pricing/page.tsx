@@ -203,7 +203,9 @@ export default function PricingPage() {
                   Custom integrations, dedicated support, and on-premise options available.
                 </p>
               </div>
-              <Button className="bg-slate-900 hover:bg-black text-white px-10 py-7 rounded-2xl font-bold flex items-center gap-2 shadow-sm shrink-0">
+              <Button
+                onClick={() => window.location.href = 'mailto:enterprise@workwise.co.ke?subject=Enterprise%20Plan%20Enquiry'}
+                className="bg-slate-900 hover:bg-black text-white px-10 py-7 rounded-2xl font-bold flex items-center gap-2 shadow-sm shrink-0">
                 Contact Enterprise <ArrowRight className="h-5 w-5" />
               </Button>
             </div>

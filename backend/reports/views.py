@@ -442,7 +442,8 @@ class P10MonthlyView(views.APIView):
             # Chargeable pay = gross - NSSF - SHIF - AHL (allowable deductions)
             allowable = item.nssf + item.shif + item.ahl
             chargeable = max(gross - allowable, Decimal('0.00'))
-            net_paye = max(item.paye - personal_relief, Decimal('0.00'))
+            # item.paye is already net PAYE after personal relief — do NOT subtract again
+            net_paye = item.paye
 
             writer.writerow([
                 emp.kra_pin or 'N/A',
@@ -485,8 +486,8 @@ class NSSFScheduleView(views.APIView):
         writer = csv.writer(response)
         writer.writerow([
             'Employee Name',
-            'KRA PIN',
-            'National ID / NSSF No.',
+            'NSSF Number',
+            'National ID',
             'Gross Salary',
             'Employee NSSF (6%)',
             'Employer NSSF (6%)',
@@ -514,7 +515,7 @@ class NSSFScheduleView(views.APIView):
             writer.writerow([
                 emp.name,
                 emp.kra_pin or 'N/A',
-                'N/A',  # National ID — extend Employee model when needed
+                emp.nssf_number or emp.national_id or 'N/A',
                 float(item.gross_salary),
                 float(employee_contrib),
                 float(employer_contrib),
