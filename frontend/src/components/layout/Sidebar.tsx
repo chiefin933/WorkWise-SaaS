@@ -23,6 +23,8 @@ import {
   Receipt,
   PiggyBank,
   Banknote,
+  BookOpen,
+  BarChart3,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -58,10 +60,13 @@ export default function Sidebar() {
     // ── Finance section ─────────────────────────────────────────────────────
     ...(canManageFinance
       ? [
-          { name: 'Finance',        href: '/finance',           icon: DollarSign },
-          { name: 'Expenses',       href: '/finance/expenses',  icon: Receipt },
-          { name: 'Budgets',        href: '/finance/budgets',   icon: PiggyBank },
-          { name: 'Petty Cash',     href: '/finance/petty-cash', icon: Banknote },
+          { name: 'Finance',        href: '/finance',                   icon: DollarSign },
+          { name: 'Expenses',       href: '/finance/expenses',          icon: Receipt },
+          { name: 'Budgets',        href: '/finance/budgets',           icon: PiggyBank },
+          { name: 'Petty Cash',     href: '/finance/petty-cash',        icon: Banknote },
+          { name: 'Accounts',       href: '/finance/books/accounts',    icon: BookOpen },
+          { name: 'Journal',        href: '/finance/books/journal',     icon: FileText },
+          { name: 'Reports',        href: '/finance/books/reports',     icon: BarChart3 },
         ]
       : []),
 

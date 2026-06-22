@@ -135,7 +135,7 @@ class ClerkWebhookView(APIView):
         # Default Payroll Config
         PayrollConfig.objects.create(tenant=tenant)
 
-        # Create the User record linked to Clerk
+        # Create the User record linked to Clerk — use the real name from Clerk
         User.objects.create_user(
             email=email,
             clerk_id=clerk_id,
@@ -145,7 +145,10 @@ class ClerkWebhookView(APIView):
             role="ADMIN",
         )
 
-        logger.info(f"Created new user {email} with tenant '{tenant_name}' on plan '{plan}'.")
+        logger.info(
+            "Created new user %s (%s %s) with tenant '%s' on plan '%s'.",
+            email, first_name, last_name, tenant_name, plan,
+        )
         return Response({"status": "user created"}, status=status.HTTP_201_CREATED)
 
     @transaction.atomic

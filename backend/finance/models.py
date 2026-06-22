@@ -178,3 +178,6 @@ class PettyCashTransaction(TenantScopedModel):
 
     def __str__(self):
         return f"{self.purpose} — KES {self.amount} ({self.status})"
+
+# Re-export books models so Django discovers them under the finance app
+from finance.books_models import ChartOfAccount, JournalEntry, JournalLine  # noqa: F401,E402

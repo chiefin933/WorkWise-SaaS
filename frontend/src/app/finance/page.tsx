@@ -11,7 +11,7 @@ import Link from 'next/link';
 import {
   DollarSign, Receipt, PiggyBank, Banknote, TrendingUp,
   TrendingDown, AlertCircle, CheckCircle2, ArrowRight,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, BookOpen, FileText,
 } from 'lucide-react';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -217,24 +217,22 @@ export default function FinanceDashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: 'Review Pending Expenses', href: '/finance/expenses?status=pending', icon: Receipt, desc: `${summary?.pending_count ?? 0} claims awaiting your review` },
-          { label: 'Set Department Budgets', href: '/finance/budgets', icon: PiggyBank, desc: 'Allocate monthly budgets per department' },
-          { label: 'Petty Cash Management', href: '/finance/petty-cash', icon: Banknote, desc: `Balance: KES ${(summary?.petty_balance ?? 0).toLocaleString()}` },
+          { label: 'Review Expenses',   href: '/finance/expenses?status=pending', icon: Receipt,    desc: `${summary?.pending_count ?? 0} claims awaiting review` },
+          { label: 'Set Budgets',       href: '/finance/budgets',                 icon: PiggyBank,  desc: 'Allocate monthly department budgets' },
+          { label: 'Petty Cash',        href: '/finance/petty-cash',              icon: Banknote,   desc: `Balance: KES ${(summary?.petty_balance ?? 0).toLocaleString()}` },
+          { label: 'Chart of Accounts', href: '/finance/books/accounts',          icon: BookOpen,   desc: 'Manage your account structure' },
+          { label: 'Journal Entries',   href: '/finance/books/journal',           icon: FileText,   desc: 'Record double-entry transactions' },
+          { label: 'Financial Reports', href: '/finance/books/reports',           icon: TrendingUp, desc: 'P&L, Balance Sheet, Trial Balance' },
         ].map(action => (
           <Link key={action.label} href={action.href}>
             <GlassCard className="p-5 hover:shadow-md transition-all cursor-pointer border border-slate-200/60 group">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-xl bg-slate-50 dark:bg-slate-800 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 flex items-center justify-center transition-colors">
-                  <action.icon className="h-5 w-5 text-slate-500 group-hover:text-teal-600 transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">{action.label}</p>
-                  <p className="text-xs text-slate-500 truncate">{action.desc}</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-slate-400 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="h-10 w-10 rounded-xl bg-slate-50 dark:bg-slate-800 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 flex items-center justify-center mb-3 transition-colors">
+                <action.icon className="h-5 w-5 text-slate-500 group-hover:text-teal-600 transition-colors" />
               </div>
+              <p className="font-bold text-slate-900 dark:text-white text-sm">{action.label}</p>
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{action.desc}</p>
             </GlassCard>
           </Link>
         ))}

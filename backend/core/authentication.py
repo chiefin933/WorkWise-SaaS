@@ -73,27 +73,45 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                 from django.db import transaction
                 from tenants.models import Tenant
                 from payroll.models import PayrollConfig
-                
+                import requests as _req
+
+                # Fetch real user details from Clerk so the name is correct
+                _first = ''
+                _last  = ''
+                _email = f"{clerk_id}@clerk.local"
+                try:
+                    _sk = settings.CLERK_SECRET_KEY
+                    if _sk:
+                        _r = _req.get(
+                            f'https://api.clerk.com/v1/users/{clerk_id}',
+                            headers={'Authorization': f'Bearer {_sk}'},
+                            timeout=5,
+                        )
+                        if _r.status_code == 200:
+                            _data   = _r.json()
+                            _first  = _data.get('first_name') or ''
+                            _last   = _data.get('last_name')  or ''
+                            _emails = _data.get('email_addresses', [])
+                            if _emails:
+                                _email = _emails[0].get('email_address', _email)
+                except Exception:
+                    pass  # Proceed with fallback values
+
                 try:
                     with transaction.atomic():
-                        # Create Tenant with starter plan
                         tenant = Tenant.objects.create(
-                            name="Local Dev Tenant",
-                            plan="STARTER"
+                            name=f"{_first}'s Organization".strip() if _first else "Local Dev Tenant",
+                            plan="BUSINESS"
                         )
-                        # Default Payroll Config
                         PayrollConfig.objects.create(tenant=tenant)
-
-                        # Create the User record linked to Clerk
                         user = User.objects.create_user(
-                            email=f"{clerk_id}@clerk.local",
+                            email=_email,
                             clerk_id=clerk_id,
-                            first_name="Clerk",
-                            last_name="User",
+                            first_name=_first,
+                            last_name=_last,
                             tenant=tenant,
                             role="ADMIN",
                         )
-                    # Set active tenant context securely
                     from core.tenant_context import set_current_tenant
                     set_current_tenant(tenant)
                     return (user, None)
