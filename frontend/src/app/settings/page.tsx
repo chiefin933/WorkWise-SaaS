@@ -26,6 +26,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -123,11 +124,16 @@ function ChangePasswordForm() {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('company');
+  const [activeTab, setActiveTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
   const user = useAuthStore((state) => state.user);
   const fetchUser = useAuthStore((state) => state.fetchUser);
   const queryClient = useQueryClient();
+
+  // Profile form — available to ALL roles
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const [companyForm, setCompanyForm] = useState({
     name: '',
@@ -170,6 +176,33 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    if (user) {
+      setProfileForm({
+        first_name: user.first_name || '',
+        last_name:  user.last_name  || '',
+      });
+    }
+  }, [user]);
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSavingProfile(true);
+    setProfileMsg(null);
+    try {
+      await api.patch('/users/me/', {
+        first_name: profileForm.first_name.trim(),
+        last_name:  profileForm.last_name.trim(),
+      });
+      await fetchUser();
+      setProfileMsg({ text: 'Profile updated successfully.', ok: true });
+    } catch {
+      setProfileMsg({ text: 'Failed to save profile.', ok: false });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
+  useEffect(() => {
     if (companyData) {
       setCompanyForm({
         name: companyData.name || '',
@@ -203,12 +236,13 @@ export default function SettingsPage() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const tabs = [
-    { id: 'company', name: 'Company Profile', icon: Building },
-    { id: 'billing', name: 'Billing & Plan', icon: CreditCard },
-    { id: 'payroll', name: 'Payroll Config', icon: Wallet },
+    { id: 'profile',  name: 'My Profile',        icon: UserCircle },
+    { id: 'company',  name: 'Company Profile',    icon: Building },
+    { id: 'billing',  name: 'Billing & Plan',     icon: CreditCard },
+    { id: 'payroll',  name: 'Payroll Config',     icon: Wallet },
     ...(user?.role === 'ADMIN' ? [{ id: 'team', name: 'Team Members', icon: Users }] : []),
-    { id: 'security', name: 'Security & Access', icon: Shield },
-    { id: 'notifications', name: 'Notifications', icon: Bell },
+    { id: 'security',       name: 'Security & Access', icon: Shield },
+    { id: 'notifications',  name: 'Notifications',     icon: Bell },
   ];
 
 
@@ -394,6 +428,85 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="flex-1">
           <GlassCard className="p-8 border border-slate-200/60">
+
+            {/* ── My Profile tab — available to ALL roles ─────────────────── */}
+            {activeTab === 'profile' && (
+              <div className="space-y-8 max-w-lg">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-1">My Profile</h3>
+                  <p className="text-sm text-slate-500">This is how your name appears across WorkWise — including greeting messages and payslips.</p>
+                </div>
+
+                {/* Avatar */}
+                <div className="flex items-center gap-5">
+                  <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20 flex-shrink-0">
+                    <span className="text-white font-black text-2xl font-outfit">
+                      {(profileForm.first_name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white text-lg">
+                      {profileForm.first_name || profileForm.last_name
+                        ? `${profileForm.first_name} ${profileForm.last_name}`.trim()
+                        : 'Your Name'}
+                    </p>
+                    <p className="text-sm text-slate-500">{user?.email}</p>
+                    <span className={`inline-flex items-center mt-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                      user?.role === 'ADMIN'   ? 'bg-slate-100 text-slate-700 border-slate-300' :
+                      user?.role === 'HR'      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      user?.role === 'FINANCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {user?.role === 'ADMIN' ? 'Administrator' :
+                       user?.role === 'HR' ? 'HR Manager' :
+                       user?.role === 'FINANCE' ? 'Finance Manager' : 'Employee'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Name form */}
+                <form onSubmit={handleSaveProfile} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">First Name</label>
+                      <input
+                        type="text"
+                        value={profileForm.first_name}
+                        onChange={e => setProfileForm(f => ({ ...f, first_name: e.target.value }))}
+                        placeholder="Simon"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Last Name</label>
+                      <input
+                        type="text"
+                        value={profileForm.last_name}
+                        onChange={e => setProfileForm(f => ({ ...f, last_name: e.target.value }))}
+                        placeholder="Kamau"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+                    <input type="email" value={user?.email ?? ''} disabled
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-400 text-sm cursor-not-allowed" />
+                    <p className="text-xs text-slate-400">Email is managed by your organisation. Contact your admin to change it.</p>
+                  </div>
+                  {profileMsg && (
+                    <p className={`text-sm font-semibold ${profileMsg.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {profileMsg.text}
+                    </p>
+                  )}
+                  <button type="submit" disabled={isSavingProfile}
+                    className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-sm font-bold transition-all">
+                    {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4" /> Save Name</>}
+                  </button>
+                </form>
+              </div>
+            )}
+
             {activeTab === 'company' && (
               <div className="space-y-6">
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Company Profile</h3>

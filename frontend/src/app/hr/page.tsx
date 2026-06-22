@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { GlassCard } from '@/components/premium/GlassCard';
 import { useAuthStore } from '@/lib/store';
+import { useUser } from '@clerk/nextjs';
 import api from '@/lib/api';
 import type { DashboardStats } from '@/lib/types';
 import Link from 'next/link';
@@ -13,7 +14,13 @@ import {
 
 export default function HRDashboard() {
   const { user } = useAuthStore();
-  const firstName = user?.first_name || user?.email?.split('@')[0] || 'there';
+  const { user: clerkUser } = useUser();
+
+  const firstName =
+    user?.first_name?.trim() ||
+    clerkUser?.firstName?.trim() ||
+    user?.email?.split('@')[0] ||
+    'there';
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],

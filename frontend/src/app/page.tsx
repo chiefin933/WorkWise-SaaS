@@ -7,6 +7,7 @@ import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import { financeApi } from '@/lib/api';
 import type { DashboardStats, FinancialSummary } from '@/lib/types';
+import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
   Users, DollarSign, Clock, Calendar, TrendingUp, TrendingDown,
@@ -16,8 +17,15 @@ import {
 
 export default function CEODashboard() {
   const { user } = useAuthStore();
-  const firstName = user?.first_name || user?.email?.split('@')[0] || 'there';
+  const { user: clerkUser } = useUser();
   const today = new Date();
+
+  // Prefer Django profile name, fall back to Clerk name, then email prefix
+  const firstName =
+    user?.first_name?.trim() ||
+    clerkUser?.firstName?.trim() ||
+    user?.email?.split('@')[0] ||
+    'there';
 
   const { data: hrStats, isLoading: hrLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],

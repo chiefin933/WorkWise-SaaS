@@ -36,10 +36,14 @@ class DepartmentBudgetAdmin(admin.ModelAdmin):
 
 @admin.register(PettyCashFund)
 class PettyCashFundAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'tenant', 'opening_balance', 'current_balance', 'custodian', 'is_active', 'created_at')
+    list_display  = ('name', 'get_tenant', 'opening_balance', 'current_balance', 'custodian', 'is_active', 'created_at')
     list_filter   = ('is_active',)
     search_fields = ('name', 'tenant__name')
     readonly_fields = ('current_balance', 'created_at', 'updated_at')
+
+    @admin.display(description='Tenant')
+    def get_tenant(self, obj):
+        return obj.tenant.name if obj.tenant else '—'
 
 
 @admin.register(PettyCashTransaction)
