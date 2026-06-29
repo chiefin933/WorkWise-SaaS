@@ -43,9 +43,10 @@ function QuickSignInForm({ prefilledEmail = '', autoOpen = false }: { prefilledE
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        toast('Welcome back!', 'success');
-        // ClerkTokenProvider will redirect to the role's home dashboard
-        router.push('/');
+        toast('Welcome! Redirecting to your dashboard…', 'success');
+        // Force a full page reload so ClerkTokenProvider starts fresh
+        // and redirects correctly based on the new user's role
+        window.location.href = '/';
       } else {
         // Needs MFA or another factor — fall through to full Clerk component
         toast('Additional verification required. Use the form below.', 'info');

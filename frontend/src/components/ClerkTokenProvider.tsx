@@ -45,7 +45,6 @@ export function ClerkTokenProvider() {
 
       if (!hasFetched && !isLoading) {
         fetchUser().then(() => {
-          // Only redirect once per session and only on root or invite landing
           if (didRedirect.current) return;
           const { user } = useAuthStore.getState();
           if (!user?.role) return;
@@ -59,6 +58,20 @@ export function ClerkTokenProvider() {
             if (pathname !== home) router.replace(home);
           }
         });
+      } else if (hasFetched) {
+        // Profile already loaded — still redirect if we're on the wrong page
+        if (didRedirect.current) return;
+        const { user } = useAuthStore.getState();
+        if (!user?.role) return;
+
+        const isInviteLanding = searchParams.get('invited') === '1';
+        const isRoot = pathname === '/';
+
+        if (isRoot || isInviteLanding) {
+          const home = ROLE_HOME[user.role] ?? '/';
+          didRedirect.current = true;
+          if (pathname !== home) router.replace(home);
+        }
       }
     } else {
       didRedirect.current = false;
