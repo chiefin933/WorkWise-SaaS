@@ -29,7 +29,10 @@ class PayrollRun(TenantScopedModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('tenant', 'month', 'year')
+        # Removed unique_together — a month can have multiple runs when the original
+        # is reversed and a corrective run is created for the same period.
+        # Uniqueness is enforced at the application level: only one non-reversed
+        # run is allowed per (tenant, month, year) at a time.
         indexes = [
             models.Index(fields=['tenant', 'status'], name='pr_tenant_status_idx'),
             models.Index(fields=['tenant', 'year', 'month'], name='pr_tenant_period_idx'),

@@ -514,8 +514,8 @@ class NSSFScheduleView(views.APIView):
 
             writer.writerow([
                 emp.name,
-                emp.kra_pin or 'N/A',
-                emp.nssf_number or emp.national_id or 'N/A',
+                emp.nssf_number or 'N/A',
+                emp.national_id or 'N/A',
                 float(item.gross_salary),
                 float(employee_contrib),
                 float(employer_contrib),

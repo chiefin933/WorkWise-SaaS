@@ -40,6 +40,22 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return PayrollRun.objects.filter(tenant=self.request.user.tenant).order_by('-year', '-month')
 
+    def perform_create(self, serializer):
+        tenant = self.request.user.tenant
+        month  = serializer.validated_data.get('month')
+        year   = serializer.validated_data.get('year')
+        # Block creating a new run if an active (non-reversed) run already exists
+        existing = PayrollRun.objects.filter(
+            tenant=tenant, month=month, year=year
+        ).exclude(status='reversed').first()
+        if existing:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(
+                f"A payroll run for {month}/{year} already exists (status: {existing.status}). "
+                f"Reverse it before creating a corrective run."
+            )
+        serializer.save(tenant=tenant)
+
     # ── Summary ───────────────────────────────────────────────────────────────
 
     @action(detail=False, methods=['get'])
