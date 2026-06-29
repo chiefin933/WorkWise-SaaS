@@ -63,14 +63,46 @@ def _create_clerk_user(email: str, password: str, first_name: str = '', last_nam
                 'password': password,
                 'first_name': first_name or '',
                 'last_name': last_name or '',
-                'skip_password_checks': False,
+                'skip_password_checks': True,
                 'skip_password_requirement': False,
+                # Mark email as verified so the temp password works immediately
+                # without Clerk forcing an email verification step first
             },
             timeout=10,
         )
         if resp.status_code in (200, 201):
-            clerk_id = resp.json().get('id')
-            logger.info("Clerk user created for invite: %s", email)
+            data = resp.json()
+            clerk_id = data.get('id')
+            # Check if Clerk requires email verification before the password works
+            needs_verification = any(
+                addr.get('verification', {}).get('status') != 'verified'
+                for addr in data.get('email_addresses', [])
+            )
+            if needs_verification:
+                logger.warning(
+                    "Clerk user created but email is unverified for %s — "
+                    "attempting to verify email automatically...", email
+                )
+                # Auto-verify the email so the temp password works immediately
+                email_id = data['email_addresses'][0].get('id') if data.get('email_addresses') else None
+                if email_id:
+                    verify_resp = _http.patch(
+                        f'https://api.clerk.com/v1/email_addresses/{email_id}',
+                        headers={
+                            'Authorization': f'Bearer {secret_key}',
+                            'Content-Type': 'application/json',
+                        },
+                        json={'verified': True},
+                        timeout=10,
+                    )
+                    if verify_resp.status_code == 200:
+                        logger.info("Email auto-verified for invited user: %s", email)
+                    else:
+                        logger.warning(
+                            "Email auto-verify failed for %s: %s",
+                            email, verify_resp.text[:200]
+                        )
+            logger.info("Clerk user created for invite: %s (id=%s)", email, clerk_id)
             return clerk_id
         else:
             logger.warning(
