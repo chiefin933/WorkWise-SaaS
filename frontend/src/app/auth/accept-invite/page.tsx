@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -22,6 +22,8 @@ function AcceptInvitePageInner() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const { signOut, isSignedIn, isLoaded } = useAuth();
+  const { user: currentUser } = useUser();
+  const currentUserEmail = currentUser?.primaryEmailAddress?.emailAddress || '';
 
   const email = searchParams.get('email') || '';
 
@@ -30,16 +32,20 @@ function AcceptInvitePageInner() {
 
     const loginUrl = `/auth/login?email=${encodeURIComponent(email)}&invited=1`;
 
-    if (isSignedIn) {
-      // Sign out the active session first so the invitee logs in as themselves
+    if (isSignedIn && currentUserEmail && email && currentUserEmail.toLowerCase() !== email.toLowerCase()) {
+      // A DIFFERENT user is logged in (e.g. CEO clicked the link meant for an invitee)
+      // Sign them out and redirect to the login page for the invited email
       signOut().then(() => {
         router.replace(loginUrl);
       });
+    } else if (isSignedIn && currentUserEmail && email && currentUserEmail.toLowerCase() === email.toLowerCase()) {
+      // The invited person is already logged in as themselves — go to their dashboard
+      router.replace('/');
     } else {
-      // No active session — go straight to the login page
+      // No active session — go straight to login with email pre-filled
       router.replace(loginUrl);
     }
-  }, [isLoaded, isSignedIn, email, signOut, router]);
+  }, [isLoaded, isSignedIn, currentUserEmail, email, signOut, router]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
