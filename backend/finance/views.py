@@ -38,7 +38,7 @@ class ExpenseClaimViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         tenant = self.request.user.tenant
         role = self.request.user.role
-        qs = ExpenseClaim.objects.filter(tenant=tenant).select_related(
+        qs = ExpenseClaim.objects.filter(employee__tenant=tenant).select_related(
             'employee', 'submitted_by', 'reviewed_by'
         )
         # Finance / Admin / HR see all claims; employees see only their own
@@ -178,7 +178,7 @@ class DepartmentBudgetViewSet(viewsets.ModelViewSet):
 
             # Approved expenses for this department this month
             expense_cost = ExpenseClaim.objects.filter(
-                tenant=tenant,
+                employee__tenant=tenant,
                 employee__department=dept,
                 status__in=('approved', 'paid'),
                 expense_date__year=year,
@@ -313,8 +313,9 @@ class FinancialSummaryView(APIView):
             ).aggregate(t=Sum('gross_salary'))['t'] or Decimal('0')
 
         # ── Expense claims this month ─────────────────────────────────────────
+        # ExpenseClaim uses TenantScopedModel — tenant is accessed via employee__tenant
         expenses_qs = ExpenseClaim.objects.filter(
-            tenant=tenant,
+            employee__tenant=tenant,
             expense_date__year=year,
             expense_date__month=month,
         )

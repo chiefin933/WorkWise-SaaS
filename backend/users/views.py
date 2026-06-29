@@ -249,7 +249,7 @@ class InviteUserView(APIView):
 
         admin_name = request.user.get_full_name() or request.user.email
         role_display = {'HR': 'HR Manager', 'FINANCE': 'Finance Manager', 'EMPLOYEE': 'Employee'}.get(role, role)
-        company_from_email = f"{tenant.name} via WorkWise <noreply@workwise.co.ke>"
+        company_from_email = f"WorkWise <onboarding@resend.dev>"
 
         send_mail(
             subject=f"You've been invited to join {tenant.name} on WorkWise",
