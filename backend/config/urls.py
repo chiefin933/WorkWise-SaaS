@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from users.views import InviteUserView, RevokeInviteView, TeamMembersView, UserProfileView, NotificationSettingsView, InviteInfoView, NotificationViewSet
+from users.views import InviteUserView, RevokeInviteView, RemoveTeamMemberView, TeamMembersView, UserProfileView, NotificationSettingsView, InviteInfoView, NotificationViewSet
 from core.views import DashboardStatsView, AuditTrailView
 from tenants.views import CompanySettingsView, PayrollConfigView, UpgradePlanView, MpesaExpressPushView, MpesaExpressCallbackView, MpesaExpressStatusView
 from employees.views import EmployeeViewSet
@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/users/invite/info/', InviteInfoView.as_view(), name='invite_info'),
     path('api/users/team/', TeamMembersView.as_view(), name='team_members'),
     path('api/users/invite/<uuid:pk>/', RevokeInviteView.as_view(), name='revoke_invite'),
+    path('api/users/team/<uuid:pk>/remove/', RemoveTeamMemberView.as_view(), name='remove_team_member'),
     path('api/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard_stats'),
     path('api/settings/company/', CompanySettingsView.as_view(), name='company_settings'),
     path('api/settings/company/upgrade-plan/', UpgradePlanView.as_view(), name='upgrade_plan'),

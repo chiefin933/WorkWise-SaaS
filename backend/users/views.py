@@ -351,12 +351,77 @@ class RevokeInviteView(APIView):
 
         if invited_user.clerk_id:
             return Response(
-                {"error": "This invite has already been accepted."},
+                {"error": "This invite has already been accepted. Use Remove Member to delete an active user."},
                 status=http_status.HTTP_403_FORBIDDEN,
             )
 
         invited_user.delete()
         return Response(status=http_status.HTTP_204_NO_CONTENT)
+
+
+class RemoveTeamMemberView(APIView):
+    """
+    DELETE /api/users/team/<uuid:pk>/remove/
+
+    Admin removes an active team member.
+    - Deletes the user from Django DB
+    - Also deletes from Clerk via Backend API so they can no longer log in
+    - Cannot remove yourself (the requesting admin)
+    - Cannot remove other ADMIN accounts
+    """
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def delete(self, request, pk):
+        try:
+            member = User.objects.get(id=pk, tenant=request.user.tenant)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=http_status.HTTP_404_NOT_FOUND)
+
+        # Cannot remove yourself
+        if member.id == request.user.id:
+            return Response(
+                {"error": "You cannot remove your own account."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Cannot remove other admins (prevents accidental lockout)
+        if member.role == 'ADMIN':
+            return Response(
+                {"error": "Admin accounts cannot be removed from here. Contact support."},
+                status=http_status.HTTP_403_FORBIDDEN,
+            )
+
+        email = member.email
+        clerk_id = member.clerk_id
+
+        # Delete from Django first
+        member.delete()
+        logger.info("Team member %s removed from tenant %s by %s", email, request.user.tenant.name, request.user.email)
+
+        # Delete from Clerk so they can no longer log in
+        if clerk_id:
+            secret_key = getattr(settings, 'CLERK_SECRET_KEY', '')
+            if secret_key:
+                try:
+                    resp = _http.delete(
+                        f'https://api.clerk.com/v1/users/{clerk_id}',
+                        headers={'Authorization': f'Bearer {secret_key}'},
+                        timeout=10,
+                    )
+                    if resp.status_code in (200, 204):
+                        logger.info("Clerk user %s deleted for removed member %s", clerk_id[:12], email)
+                    else:
+                        logger.warning(
+                            "Clerk deletion failed for %s (status %s) — user removed from DB only",
+                            email, resp.status_code
+                        )
+                except Exception as exc:
+                    logger.error("Clerk API error during member removal for %s: %s", email, exc)
+
+        return Response(
+            {"message": f"{email} has been removed from your workspace."},
+            status=http_status.HTTP_200_OK,
+        )
 
 
 class InviteInfoView(APIView):

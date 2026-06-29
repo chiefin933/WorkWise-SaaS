@@ -344,6 +344,22 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRemove = async (member: TeamMember) => {
+    if (!window.confirm(`Remove ${member.email} from your workspace? They will lose access immediately.`)) return;
+    setRevokingId(member.id);
+    setInviteError('');
+    try {
+      await api.delete(`/users/team/${member.id}/remove/`);
+      await queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      showInviteToast(`${member.email} has been removed from your workspace.`);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string; detail?: string } } };
+      setInviteError(error.response?.data?.error || error.response?.data?.detail || 'Could not remove member.');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
   const roleBadgeClass = (role: TeamMember['role']) => {
     if (role === 'ADMIN') return 'bg-slate-100 text-slate-700 border-slate-300';
     if (role === 'HR') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -770,6 +786,16 @@ export default function SettingsPage() {
                                   >
                                     {revokingId === member.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                     Revoke
+                                  </button>
+                                ) : member.role !== 'ADMIN' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemove(member)}
+                                    disabled={revokingId === member.id}
+                                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    {revokingId === member.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                    Remove
                                   </button>
                                 ) : null}
                               </td>
