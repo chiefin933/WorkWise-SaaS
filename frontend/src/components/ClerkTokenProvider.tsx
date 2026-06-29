@@ -49,29 +49,19 @@ export function ClerkTokenProvider() {
           const { user } = useAuthStore.getState();
           if (!user?.role) return;
 
+          // Only redirect if landing on / from a fresh login (not navigating within app)
           const isInviteLanding = searchParams.get('invited') === '1';
           const isRoot = pathname === '/';
+          const fromLogin = document.referrer.includes('/auth/login') ||
+                            document.referrer === '' ||
+                            searchParams.get('invited') === '1';
 
-          if (isRoot || isInviteLanding) {
+          if ((isRoot && fromLogin) || isInviteLanding) {
             const home = ROLE_HOME[user.role] ?? '/';
             didRedirect.current = true;
             if (pathname !== home) router.replace(home);
           }
         });
-      } else if (hasFetched) {
-        // Profile already loaded — still redirect if we're on the wrong page
-        if (didRedirect.current) return;
-        const { user } = useAuthStore.getState();
-        if (!user?.role) return;
-
-        const isInviteLanding = searchParams.get('invited') === '1';
-        const isRoot = pathname === '/';
-
-        if (isRoot || isInviteLanding) {
-          const home = ROLE_HOME[user.role] ?? '/';
-          didRedirect.current = true;
-          if (pathname !== home) router.replace(home);
-        }
       }
     } else {
       didRedirect.current = false;

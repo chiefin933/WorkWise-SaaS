@@ -1,4 +1,12 @@
 import axios from 'axios';
+import type {
+  ExpenseClaim,
+  DepartmentBudget,
+  BudgetUtilizationResponse,
+  PettyCashFund,
+  PettyCashTransaction,
+  FinancialSummary,
+} from './types';
 
 let _getToken: (() => Promise<string | null>) | null = null;
 
@@ -31,22 +39,9 @@ export default api;
 
 // ── Finance API ───────────────────────────────────────────────────────────────
 
-import type {
-  ExpenseClaim,
-  DepartmentBudget,
-  BudgetUtilizationResponse,
-  PettyCashFund,
-  PettyCashTransaction,
-  FinancialSummary,
-} from './types';
-
-// Expense Claims
 export const financeApi = {
   // ── Expense Claims ──────────────────────────────────────────────────────────
-  getExpenses: (params?: {
-    status?: string;
-    department?: string;
-  }) =>
+  getExpenses: (params?: { status?: string; department?: string }) =>
     api.get<ExpenseClaim[]>('/finance/expenses/', { params }).then((r) => r.data),
 
   getExpense: (id: string) =>
@@ -67,14 +62,10 @@ export const financeApi = {
     api.patch<ExpenseClaim>(`/finance/expenses/${id}/`, data).then((r) => r.data),
 
   approveExpense: (id: string, comment?: string) =>
-    api
-      .post<ExpenseClaim>(`/finance/expenses/${id}/approve/`, { comment: comment ?? '' })
-      .then((r) => r.data),
+    api.post<ExpenseClaim>(`/finance/expenses/${id}/approve/`, { comment: comment ?? '' }).then((r) => r.data),
 
   rejectExpense: (id: string, comment: string) =>
-    api
-      .post<ExpenseClaim>(`/finance/expenses/${id}/reject/`, { comment })
-      .then((r) => r.data),
+    api.post<ExpenseClaim>(`/finance/expenses/${id}/reject/`, { comment }).then((r) => r.data),
 
   markExpensePaid: (id: string) =>
     api.post<ExpenseClaim>(`/finance/expenses/${id}/mark-paid/`).then((r) => r.data),
@@ -102,58 +93,35 @@ export const financeApi = {
     api.delete(`/finance/budgets/${id}/`).then((r) => r.data),
 
   getBudgetUtilization: (params: { year: number; month: number }) =>
-    api
-      .get<BudgetUtilizationResponse>('/finance/budgets/utilization/', { params })
-      .then((r) => r.data),
+    api.get<BudgetUtilizationResponse>('/finance/budgets/utilization/', { params }).then((r) => r.data),
 
   // ── Petty Cash ──────────────────────────────────────────────────────────────
   getPettyCashFunds: () =>
     api.get<PettyCashFund[]>('/finance/petty-cash/').then((r) => r.data),
 
-  createPettyCashFund: (data: {
-    name: string;
-    opening_balance: number;
-    custodian?: string;
-  }) =>
+  createPettyCashFund: (data: { name: string; opening_balance: number; custodian?: string }) =>
     api.post<PettyCashFund>('/finance/petty-cash/', data).then((r) => r.data),
 
   updatePettyCashFund: (id: string, data: Partial<PettyCashFund>) =>
     api.patch<PettyCashFund>(`/finance/petty-cash/${id}/`, data).then((r) => r.data),
 
   getFundTransactions: (fundId: string, params?: { status?: string }) =>
-    api
-      .get<PettyCashTransaction[]>(`/finance/petty-cash/${fundId}/transactions/`, { params })
-      .then((r) => r.data),
+    api.get<PettyCashTransaction[]>(`/finance/petty-cash/${fundId}/transactions/`, { params }).then((r) => r.data),
 
-  createPettyCashRequest: (
-    fundId: string,
-    data: {
-      transaction_type: string;
-      amount: number;
-      purpose: string;
-      category?: string;
-      receipt_url?: string;
-    }
-  ) =>
-    api
-      .post<PettyCashTransaction>(`/finance/petty-cash/${fundId}/transactions/`, data)
-      .then((r) => r.data),
+  createPettyCashRequest: (fundId: string, data: {
+    transaction_type: string;
+    amount: number;
+    purpose: string;
+    category?: string;
+    receipt_url?: string;
+  }) =>
+    api.post<PettyCashTransaction>(`/finance/petty-cash/${fundId}/transactions/`, data).then((r) => r.data),
 
   approvePettyCashTxn: (fundId: string, txnId: string, comment?: string) =>
-    api
-      .post<PettyCashTransaction>(
-        `/finance/petty-cash/${fundId}/transactions/${txnId}/approve/`,
-        { comment: comment ?? '' }
-      )
-      .then((r) => r.data),
+    api.post<PettyCashTransaction>(`/finance/petty-cash/${fundId}/transactions/${txnId}/approve/`, { comment: comment ?? '' }).then((r) => r.data),
 
   rejectPettyCashTxn: (fundId: string, txnId: string, comment: string) =>
-    api
-      .post<PettyCashTransaction>(
-        `/finance/petty-cash/${fundId}/transactions/${txnId}/reject/`,
-        { comment }
-      )
-      .then((r) => r.data),
+    api.post<PettyCashTransaction>(`/finance/petty-cash/${fundId}/transactions/${txnId}/reject/`, { comment }).then((r) => r.data),
 
   // ── Financial Summary ───────────────────────────────────────────────────────
   getFinancialSummary: (params?: { year?: number; month?: number }) =>
