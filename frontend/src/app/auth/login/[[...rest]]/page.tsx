@@ -19,16 +19,16 @@ const stats = [
 //   1. This quick form (email + password only, with toasts)
 //   2. The full Clerk component below (social login, MFA, magic link, etc.)
 
-function QuickSignInForm() {
+function QuickSignInForm({ prefilledEmail = '', autoOpen = false }: { prefilledEmail?: string; autoOpen?: boolean }) {
   const { signIn, setActive, isLoaded } = useSignIn();
   const router = useRouter();
   const { toast, container: toastContainer } = useToast();
 
-  const [email, setEmail]       = useState('');
+  const [email, setEmail]       = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd]   = useState(false);
   const [loading, setLoading]   = useState(false);
-  const [open, setOpen]         = useState(false);
+  const [open, setOpen]         = useState(autoOpen);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -44,6 +44,7 @@ function QuickSignInForm() {
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
         toast('Welcome back!', 'success');
+        // ClerkTokenProvider will redirect to the role's home dashboard
         router.push('/');
       } else {
         // Needs MFA or another factor — fall through to full Clerk component
@@ -130,6 +131,7 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
   const isInvited = searchParams.get('invited') === '1';
+  const prefilledEmail = searchParams.get('email') || '';
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -153,9 +155,9 @@ export default function LoginPage() {
               <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 <div className="text-sm leading-relaxed">
-                  <strong className="font-bold">You&apos;ve been invited to join a workspace.</strong>
+                  <strong className="font-bold">Your account is ready.</strong>
                   <br />
-                  Sign in or create an account with your invited email address to accept.
+                  Use the email and temporary password from your invitation email to sign in below. You can change your password after logging in.
                 </div>
               </div>
             )}
@@ -164,7 +166,7 @@ export default function LoginPage() {
           </div>
 
           {/* Quick email/password form with toast errors */}
-          {mounted && <QuickSignInForm />}
+          {mounted && <QuickSignInForm prefilledEmail={prefilledEmail} autoOpen={isInvited} />}
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
