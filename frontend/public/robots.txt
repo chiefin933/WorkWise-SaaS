@@ -1,0 +1,28 @@
+# WorkWise SaaS — robots.txt
+# Block all crawlers from the authenticated app pages.
+# Only the public-facing pages (pricing, auth) are crawlable.
+
+User-agent: *
+
+# Block all authenticated/app routes
+Disallow: /
+Disallow: /hr
+Disallow: /finance
+Disallow: /employee
+Disallow: /employees
+Disallow: /attendance
+Disallow: /leave
+Disallow: /payroll
+Disallow: /reports
+Disallow: /notifications
+Disallow: /audit
+Disallow: /manager
+Disallow: /settings
+
+# Allow public pages
+Allow: /pricing
+Allow: /auth/login
+Allow: /auth/register
+
+# Sitemap
+Sitemap: https://app.workwise.co.ke/sitemap.xml
