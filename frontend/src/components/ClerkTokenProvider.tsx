@@ -11,7 +11,7 @@ import { useAuthStore } from '@/lib/store';
  * When a user logs in (or lands on "/"), they are redirected here.
  */
 const ROLE_HOME: Record<string, string> = {
-  ADMIN:    '/',
+  ADMIN:    '/dashboard',
   HR:       '/hr',
   FINANCE:  '/finance',
   EMPLOYEE: '/employee',
@@ -51,7 +51,7 @@ export function ClerkTokenProvider() {
 
           // Only redirect if landing on / from a fresh login (not navigating within app)
           const isInviteLanding = searchParams.get('invited') === '1';
-          const isRoot = pathname === '/';
+          const isRoot = pathname === '/' || pathname === '/dashboard';
           const fromLogin = document.referrer.includes('/auth/login') ||
                             document.referrer === '' ||
                             searchParams.get('invited') === '1';

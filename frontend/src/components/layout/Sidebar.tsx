@@ -42,7 +42,7 @@ export default function Sidebar() {
   const navItems = [
     // ── CEO / Admin only ────────────────────────────────────────────────────
     ...(isCEO
-      ? [{ name: 'CEO Dashboard', href: '/', icon: LayoutDashboard }]
+      ? [{ name: 'CEO Dashboard', href: '/dashboard', icon: LayoutDashboard }]
       : []),
 
     // ── HR section ──────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     await signOut();
-    router.push('/auth/login');
+    router.push('/');
   };
 
   const initials = user 
@@ -124,7 +124,8 @@ export default function Sidebar() {
            {!isCollapsed && <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 px-2">Main Menu</div>}
            <nav className="space-y-1.5 w-full">
              {navItems.map((item) => {
-               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+               const isActive = pathname === item.href ||
+                 (item.href !== '/' && item.href !== '/dashboard' && pathname.startsWith(item.href));
                return (
                  <Link
                    key={item.name}

@@ -63,7 +63,23 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
-        headers: securityHeaders.filter(h => h.key), // skip commented-out headers
+        headers: securityHeaders.filter(h => h.key),
+      },
+      // Service worker must not be cached — always serve fresh
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+      // Manifest should be fresh but can be cached briefly
+      {
+        source: '/manifest.json',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+          { key: 'Content-Type', value: 'application/manifest+json' },
+        ],
       },
     ];
   },

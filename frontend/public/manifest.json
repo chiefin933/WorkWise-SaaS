@@ -1,0 +1,57 @@
+{
+  "name": "WorkWise HR & Finance",
+  "short_name": "WorkWise",
+  "description": "Kenya's all-in-one HR & Finance platform — payroll, leave, attendance, and double-entry bookkeeping.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0d9488",
+  "background_color": "#0f172a",
+  "lang": "en",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "CEO Dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Payroll",
+      "short_name": "Payroll",
+      "description": "Run and manage payroll",
+      "url": "/payroll",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Employees",
+      "short_name": "Employees",
+      "description": "Manage your team",
+      "url": "/employees",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

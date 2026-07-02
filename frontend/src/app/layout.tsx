@@ -1,35 +1,44 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import Providers from "@/components/providers";
-import AppLayout from "@/components/layout/AppLayout";
-import ErrorBoundary from "@/components/ErrorBoundary";
-
-// All pages in this app require authentication and use Clerk hooks.
-// Disable static pre-rendering globally so Next.js always renders at request time.
-export const dynamic = 'force-dynamic';
+import type { Metadata } from 'next';
+import './globals.css';
+import Providers from '@/components/providers';
+import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 
 export const metadata: Metadata = {
-  title: "Workwise HR SaaS",
-  description: "Modern, compliant HR & Payroll platform for Kenyan SMEs.",
+  title: {
+    default: 'WorkWise — Kenya HR & Payroll SaaS',
+    template: '%s | WorkWise',
+  },
+  description:
+    'The all-in-one HR & Finance platform built for Kenyan SMEs. Manage payroll, attendance, leave, expenses, and statutory compliance in one place.',
+  keywords: ['HR software Kenya', 'payroll Kenya', 'PAYE', 'NSSF', 'SHIF', 'workforce management'],
+  manifest: '/manifest.json',
+  themeColor: '#0d9488',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'WorkWise',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'WorkWise',
+    title: 'WorkWise — Kenya HR & Payroll SaaS',
+    description:
+      'Automate payroll, leave, attendance, and finance for your Kenyan business. KRA compliant. M-Pesa payments. 14-day free trial.',
+  },
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html
-      lang="en"
-      className="h-full antialiased"
-      suppressHydrationWarning
-    >
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col font-sans">
-        <ErrorBoundary>
-          <Providers>
-            <AppLayout>{children}</AppLayout>
-          </Providers>
-        </ErrorBoundary>
+        <Providers>
+          <ServiceWorkerRegistration />
+          {children}
+        </Providers>
       </body>
     </html>
   );

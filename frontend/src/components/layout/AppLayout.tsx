@@ -249,13 +249,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   })();
   const showTrialBanner = trialDaysLeft !== null && trialDaysLeft <= 7;
 
+  // Public pages bypass the auth guard — marketing page and pricing are accessible without login
+  const isPublicPage = pathname === '/' || pathname.startsWith('/pricing');
+
   useEffect(() => {
-    if (!isAuthPage && isLoaded && !isSignedIn) {
+    if (!isAuthPage && !isPublicPage && isLoaded && !isSignedIn) {
       router.push('/auth/login');
     }
-  }, [isAuthPage, isLoaded, isSignedIn, router]);
+  }, [isAuthPage, isPublicPage, isLoaded, isSignedIn, router]);
 
-  if (isAuthPage) {
+  if (isAuthPage || isPublicPage) {
     return <>{children}</>;
   }
 

@@ -40,7 +40,7 @@ function AcceptInvitePageInner() {
       });
     } else if (isSignedIn && currentUserEmail && email && currentUserEmail.toLowerCase() === email.toLowerCase()) {
       // The invited person is already logged in as themselves — go to their dashboard
-      router.replace('/');
+      router.replace('/dashboard');
     } else {
       // No active session — go straight to login with email pre-filled
       router.replace(loginUrl);
