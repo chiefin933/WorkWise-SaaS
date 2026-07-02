@@ -53,20 +53,20 @@ export default function Sidebar() {
           { name: 'Attendance',    href: '/attendance', icon: Clock },
           { name: 'Leave',         href: '/leave',     icon: Calendar },
           { name: 'Payroll',       href: '/payroll',   icon: DollarSign },
-          { name: 'Reports',       href: '/reports',   icon: FileText },
+          { name: 'HR Reports',    href: '/reports',   icon: FileText },
         ]
       : []),
 
     // ── Finance section ─────────────────────────────────────────────────────
     ...(canManageFinance
       ? [
-          { name: 'Finance',        href: '/finance',                   icon: DollarSign },
-          { name: 'Expenses',       href: '/finance/expenses',          icon: Receipt },
-          { name: 'Budgets',        href: '/finance/budgets',           icon: PiggyBank },
-          { name: 'Petty Cash',     href: '/finance/petty-cash',        icon: Banknote },
-          { name: 'Accounts',       href: '/finance/books/accounts',    icon: BookOpen },
-          { name: 'Journal',        href: '/finance/books/journal',     icon: FileText },
-          { name: 'Reports',        href: '/finance/books/reports',     icon: BarChart3 },
+          { name: 'Finance',         href: '/finance',                   icon: DollarSign },
+          { name: 'Expenses',        href: '/finance/expenses',          icon: Receipt },
+          { name: 'Budgets',         href: '/finance/budgets',           icon: PiggyBank },
+          { name: 'Petty Cash',      href: '/finance/petty-cash',        icon: Banknote },
+          { name: 'Accounts',        href: '/finance/books/accounts',    icon: BookOpen },
+          { name: 'Journal',         href: '/finance/books/journal',     icon: FileText },
+          { name: 'Finance Reports', href: '/finance/books/reports',     icon: BarChart3 },
         ]
       : []),
 
