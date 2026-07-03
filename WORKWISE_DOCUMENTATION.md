@@ -5,404 +5,442 @@
 > from onboarding to payroll, from expense claims to double-entry bookkeeping —
 > secured behind Clerk authentication and AES-256-GCM field-level encryption.
 
+**Current Status: Production-Ready**
+All coding work is complete. The only remaining steps require external credentials
+(domain, Clerk production instance, Safaricom Daraja go-live, optional AWS S3).
+
 ---
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [System Architecture](#2-system-architecture)
-3. [Technology Stack](#3-technology-stack)
-4. [Role-Based Access Control](#4-role-based-access-control)
-5. [Invite & Onboarding Flow](#5-invite--onboarding-flow)
-6. [Multi-Tenancy Design](#6-multi-tenancy-design)
-7. [HR Module](#7-hr-module)
-8. [Payroll Engine](#8-payroll-engine)
-9. [Finance Module](#9-finance-module)
-10. [Finance Books — Double-Entry Bookkeeping](#10-finance-books--double-entry-bookkeeping)
-11. [M-Pesa Integration](#11-m-pesa-integration)
-12. [Authentication & Security](#12-authentication--security)
-13. [Notifications System](#13-notifications-system)
-14. [Audit Trail](#14-audit-trail)
-15. [REST API Reference](#15-rest-api-reference)
-16. [Frontend — Pages & Dashboards](#16-frontend--pages--dashboards)
-17. [Subscription Plans & Billing](#17-subscription-plans--billing)
-18. [Environment Configuration](#18-environment-configuration)
-19. [Deployment](#19-deployment)
+1. [What's Complete](#whats-complete)
+2. [Technology Stack](#technology-stack)
+3. [Architecture](#architecture)
+4. [Role-Based Access Control](#role-based-access-control)
+5. [Invite & Onboarding Flow](#invite--onboarding-flow)
+6. [Route Structure](#route-structure)
+7. [HR Module](#hr-module)
+8. [Payroll Engine](#payroll-engine)
+9. [Finance Module](#finance-module)
+10. [Finance Books — Double-Entry Bookkeeping](#finance-books--double-entry-bookkeeping)
+11. [M-Pesa Integration](#m-pesa-integration)
+12. [Authentication & Security](#authentication--security)
+13. [Notifications System](#notifications-system)
+14. [Audit Trail](#audit-trail)
+15. [PWA & Public Marketing Site](#pwa--public-marketing-site)
+16. [Email System](#email-system)
+17. [REST API Reference](#rest-api-reference)
+18. [Frontend Pages & Dashboards](#frontend-pages--dashboards)
+19. [Subscription Plans & Billing](#subscription-plans--billing)
+20. [Deployment](#deployment)
+21. [What Remains (Credentials Only)](#what-remains-credentials-only)
 
 ---
 
-## 1. Project Overview
+## What's Complete
 
-WorkWise is a B2B SaaS application where each **company (tenant)** gets a fully isolated workspace. The platform serves four distinct roles with tailored dashboards and access controls:
+Every feature listed below is built, tested locally, and pushed to GitHub.
 
-| Domain | Features |
-|---|---|
-| **Employee Management** | CRUD, departments, encrypted KRA PIN, National ID, NSSF/SHIF numbers, M-Pesa number, bank details, bulk CSV import |
-| **Attendance** | Clock-in/out with GPS geofencing, public holiday 2x overtime detection, bulk CSV upload, presence matrix |
-| **Leave Management** | Annual, Sick, Maternity, Paternity, Unpaid — two-stage approval, Employment Act defaults, balance tracking |
-| **Payroll** | KRA-compliant PAYE, NSSF (old/new act), SHIF, AHL — fully configurable per tenant, payslip PDF generation |
-| **Disbursement** | M-Pesa B2C bulk salary payments, bank EFT exports (Equity, KCB, Co-op, Stanbic) |
-| **Finance Operations** | Expense claims with approval workflow, department budgets with utilization tracking, petty cash management |
-| **Finance Books** | Double-entry bookkeeping, Chart of Accounts (50-account Kenyan SME standard), journal entries, Income Statement, Balance Sheet, Trial Balance |
-| **Statutory Exports** | KRA P9, P10, NSSF schedule, SHIF/AHL schedule — streaming CSV exports |
-| **Notifications** | Real-time in-app notifications for leave, payroll, and employee events |
-| **Audit Trail** | Cryptographically immutable append-only log with HMAC-SHA256 integrity seals |
+### HR
+- ✅ Multi-tenant employee management with all Kenya statutory fields (KRA PIN, National ID, NSSF, SHIF numbers, county, nationality, work permit)
+- ✅ KRA PIN validated on frontend (live, on blur) and backend serializer (`^[A-Z]\d{9}[A-Z]$`)
+- ✅ Bulk CSV employee import with column alias support and upsert by email
+- ✅ Add Employee modal + Edit Employee modal (tabbed: Basic Info / Statutory IDs / Payment)
+- ✅ Attendance with GPS geofencing, public holiday 2× overtime detection, presence matrix
+- ✅ Kenya 12-day public holiday calendar (2024–2027) including Easter + Idd dates
+- ✅ Leave management (Annual 21d / Sick 30d / Maternity 90d / Paternity 14d / Unpaid)
+- ✅ Two-stage leave approval (manager → HR/Admin)
+- ✅ Leave balance tracking per employee per year
+- ✅ Employee self-service portal (payslips, leave requests, leave balance, phone update)
+
+### Payroll
+- ✅ Kenyan statutory engine fully connected to `PayrollConfig` (not hardcoded)
+- ✅ NSSF old/new act toggle in Settings → Payroll Config with LEL/UEL configuration
+- ✅ PAYE progressive bands, SHIF 2.75% with KES 300 minimum, AHL 1.5%
+- ✅ Public holiday overtime 2× / weekday overtime 1.5× split in payroll task
+- ✅ Payroll reversal workflow — reverse approved/paid run, auto-reverses finance JE
+- ✅ Payroll reversal button in UI with confirmation dialog
+- ✅ PDF payslip generation (ReportLab, branded)
+- ✅ S3 payslip storage + 5-minute pre-signed download URL
+- ✅ Payslip email with branded HTML template + PDF attachment
+- ✅ Statutory CSV exports: KRA P9, P10 (P10 double-deduction bug fixed), NSSF (correct columns), SHIF/AHL
+- ✅ Bank EFT exports: Equity, KCB, Co-op, Stanbic
+- ✅ M-Pesa B2C salary disbursement (sandbox)
+
+### Finance
+- ✅ Expense claims (submit / approve / reject / mark paid)
+- ✅ Department budgets with real-time utilization (payroll + expenses vs budget)
+- ✅ Petty cash fund management (request / approve / disburse)
+- ✅ Double-entry bookkeeping: Chart of Accounts (50 standard Kenyan SME accounts auto-seeded)
+- ✅ Journal entries with balance validation, post/reverse
+- ✅ Auto-posting: payroll approval → JE, expense paid → JE, petty cash disbursed → JE
+- ✅ Income Statement (P&L), Balance Sheet, Trial Balance, General Ledger
+- ✅ Finance Dashboard with KPIs, budget utilization bar, expense by category
+
+### CEO Dashboard
+- ✅ Connected to both HR + Finance: live employee count, payroll cost, expense total, budget %, attendance rate, pending approvals
+- ✅ Pending Approvals panel: leave requests + expense claims + latest payroll status
+- ✅ Financial Overview: payroll / expenses / pending / petty cash vs budget bars
+- ✅ Department headcount breakdown
+- ✅ Recent Activity feed from notifications (both modules)
+- ✅ 8-module management shortcut grid
+- ✅ 30-second auto-refresh
+
+### Security & Infrastructure
+- ✅ AES-256-GCM field encryption: KRA PIN, National ID, M-Pesa number, bank details
+- ✅ Svix HMAC webhook signature verification
+- ✅ Append-only audit log with HMAC-SHA256 integrity seals
+- ✅ Clerk JWT/RS256 with JWKS caching
+- ✅ Rate limiting (anon 30/min, auth 120/min, login 10/min)
+- ✅ HTTP security headers (CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy)
+- ✅ `MASTER_ENCRYPTION_KEY` required at startup (app refuses to start without it)
+- ✅ CI/CD: GitHub Actions (pytest + Bandit + npm audit)
+
+### Frontend / UX
+- ✅ Public marketing landing page at `/`
+- ✅ PWA manifest, service worker (API calls never cached), install button
+- ✅ Route groups: `(app)/` authenticated, `(marketing)/` public
+- ✅ Custom 404, 500, global-error pages
+- ✅ Trial expiry warning banner (≤7 days)
+- ✅ Role-based post-login redirect (Admin → /dashboard, HR → /hr, Finance → /finance, Employee → /employee)
+- ✅ Invite flow: temp password generated, Clerk user created, HTML email sent
+- ✅ Branded HTML email templates (invite + payslip)
+- ✅ Sitemap at `/sitemap.xml`
+- ✅ robots.txt blocking crawlers from app routes
+- ✅ NSSF Act toggle UI in Settings → Payroll Config
+- ✅ Edit Employee modal with all Kenya statutory fields (3 tabs)
+- ✅ Annual/monthly billing toggle on pricing page
 
 ---
 
-## 2. System Architecture
-
-```
-Browser (Next.js 16)
-      │  HTTPS + Clerk Bearer JWT
-      ▼
-Django / Gunicorn (:8000)
-  ├── REST API  (/api/*)
-  ├── Django Admin (/admin/)
-  └── Clerk Webhook (/api/webhooks/clerk/)
-      │
-      ├── Supabase PostgreSQL (primary: eu-central-1, backup: eu-west-1)
-      ├── Redis (Celery broker + cache — production)
-      └── Celery Worker (payroll processing, payslip email/S3)
-```
-
-**Multi-tenancy** is enforced at the ORM level via `TenantScopedModel`.
-Every query is automatically scoped to the authenticated user's tenant.
-
----
-
-## 3. Technology Stack
+## Technology Stack
 
 ### Backend
 | Layer | Technology |
 |---|---|
 | Framework | Django 6.x + Django REST Framework |
 | Language | Python 3.12 |
-| Database | PostgreSQL 16 via Supabase |
-| Auth | Clerk JWT/RS256 (JWKS verification) |
+| Database | PostgreSQL 16 via Supabase (primary: eu-central-1, backup: eu-west-1) |
+| Auth | Clerk JWT/RS256 (JWKS verification, keys cached 1 hour) |
 | Async | Celery 5 + Redis 7 |
-| PDF | ReportLab |
-| Storage | AWS S3 (payslip storage) |
+| PDF | ReportLab (branded payslips) |
+| Storage | AWS S3 (payslip storage, private ACL, AES256 SSE) |
 | Server | Gunicorn + Nginx |
 | Encryption | AES-256-GCM (`cryptography` library) |
-| Webhooks | Svix (Clerk signature verification) |
-| Email | SMTP via Resend |
+| Email | SMTP via Resend (HTML templates with inline CSS) |
+| Webhooks | Svix HMAC signature verification |
 
 ### Frontend
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16 (App Router) |
+| Framework | Next.js 16 (App Router, route groups) |
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS v4 |
-| Components | Shadcn/UI + Glassmorphic design system |
 | Auth | `@clerk/nextjs` v6 |
 | State | Zustand v5 + TanStack React Query v5 |
 | HTTP | Axios with Clerk JWT interceptor |
-| Icons | Lucide React |
+| PWA | Manual Workbox service worker (not next-pwa) |
 
 ---
 
-## 4. Role-Based Access Control
+## Architecture
 
-WorkWise has four roles. Every new company registration creates one **Admin**. All other users must be invited by the Admin.
+```
+/ (marketing)          ← public, no auth, static
+/dashboard             ← CEO/Admin
+/hr                    ← HR Manager
+/finance               ← Finance Manager
+/employee              ← Employee self-service
+/employees, /payroll   ← shared authenticated routes
+/auth/*                ← public
 
-| Role | Home Dashboard | Key Access |
+proxy.ts (Clerk middleware)
+  ├── Public: /, /pricing, /auth/*, /manifest.json, /sw.js, /api/webhooks/*, /api/mpesa/*
+  └── Protected: everything else → auth.protect()
+```
+
+---
+
+## Role-Based Access Control
+
+| Role | Home | Access |
 |---|---|---|
-| `ADMIN` (CEO) | `/` — CEO Dashboard | Full access to all HR + Finance modules, audit trail, billing, team management |
-| `HR` | `/hr` — HR Dashboard | Employees, attendance, leave, payroll, statutory exports |
-| `FINANCE` | `/finance` — Finance Dashboard | Expenses, budgets, petty cash, chart of accounts, journal entries, financial reports |
-| `EMPLOYEE` | `/employee` — Employee Dashboard | Self-service: clock in/out, leave requests, expense claims, payslip download |
+| `ADMIN` | `/dashboard` | Full access to all modules, audit trail, billing, team management |
+| `HR` | `/hr` | Employees, attendance, leave, payroll, statutory exports |
+| `FINANCE` | `/finance` | Expenses, budgets, petty cash, chart of accounts, journals, reports |
+| `EMPLOYEE` | `/employee` | Self-service: clock in/out, leave, payslips, expense claims |
 
 ---
 
-## 5. Invite & Onboarding Flow
+## Invite & Onboarding Flow
 
-1. Admin goes to **Settings → Team Members**
-2. Fills in first name, last name, email, and role (HR / Finance Manager / Employee)
-3. Backend generates a secure temporary password (12 chars, mixed case + digit + special)
-4. Creates the Clerk user via Clerk Backend API with the password
-5. Auto-verifies the email so the password works immediately
-6. Creates the Django user record with the assigned role and tenant
-7. Emails login credentials to the invitee with a direct login link
-8. Invitee clicks link → any existing session is signed out → login page opens with email pre-filled
-9. Invitee enters temp password → full page reload → `ClerkTokenProvider` reads role → redirects to correct dashboard
-10. Invitee can change password from **Settings → Security → Change Password**
+1. Admin → Settings → Team Members → enter name, email, role
+2. Backend generates secure temp password (12 chars, mixed)
+3. Creates Clerk user via Backend API, auto-verifies email
+4. Creates Django user record with role and tenant
+5. Sends **branded HTML email** with credentials and direct login link
+6. Invitee clicks link → any other session is signed out → login page with email pre-filled
+7. Invitee logs in → full page reload → ClerkTokenProvider → role-based redirect
+8. Invitee changes password: Settings → Security → Change Password
 
-**Removing team members:**
-Admin can remove any non-admin member from Settings → Team Members → Remove.
-This deletes the user from both the Django database and Clerk (so they cannot log back in).
+**Remove team member:** Admin → Settings → Team Members → Remove  
+→ Deletes from Django DB + calls Clerk API to delete account
 
 ---
 
-## 6. Multi-Tenancy Design
+## Route Structure
 
-- Every business data model extends `TenantScopedModel` (abstract Django model)
-- `TenantManager` automatically filters every queryset to `tenant = current_tenant`
-- Tenant is resolved from the Clerk JWT by `ClerkAuthentication` and stored in thread-local context by `TenantMiddleware`
-- `perform_create()` on every ViewSet stamps `tenant = request.user.tenant` before saving
-- Cross-tenant data access is impossible through the standard ORM layer
-- New tenant creation automatically seeds a full 50-account Chart of Accounts and default `PayrollConfig`
+```
+src/app/
+├── (marketing)/           ← public, no AppLayout
+│   ├── layout.tsx         ← minimal wrapper
+│   └── page.tsx           ← landing page
+├── (app)/                 ← authenticated, wrapped by AppLayout
+│   ├── layout.tsx         ← AppLayout + ErrorBoundary + force-dynamic
+│   ├── dashboard/         ← CEO dashboard
+│   ├── hr/                ← HR dashboard
+│   ├── finance/           ← Finance dashboard + sub-pages
+│   ├── employee/          ← Employee self-service
+│   ├── employees/         ← Employee directory
+│   ├── attendance/
+│   ├── leave/
+│   ├── payroll/
+│   ├── reports/
+│   ├── notifications/
+│   ├── audit/
+│   ├── manager/self-service/
+│   └── settings/
+├── auth/                  ← public auth pages
+├── pricing/               ← public pricing
+├── layout.tsx             ← root (Providers + ServiceWorkerRegistration)
+├── not-found.tsx          ← branded 404
+├── error.tsx              ← branded 500
+├── global-error.tsx       ← root crash handler
+└── sitemap.ts             ← /sitemap.xml
+```
 
 ---
 
-## 7. HR Module
+## HR Module
 
-### Employee Model
-Key fields: `name`, `email`, `phone`, `department`, `job_title`, `employment_type` (monthly/weekly/daily/hourly), `salary_basic`, `allowances` (JSON), `payment_method` (mpesa/bank)
-
-**Kenya-specific statutory fields (all encrypted at rest):**
-- `kra_pin` — KRA Personal Identification Number (format: A001234567X, validated)
-- `national_id` — National ID / Alien ID / Passport
-- `nssf_number` — NSSF membership number
-- `shif_number` — SHIF membership number
-- `payroll_number` — Internal payroll number
-- `nationality` — Default: Kenyan (affects PAYE treatment)
-- `county` — County of residence/work
-- `work_permit_number` — Required for non-citizen employees
+### Employee Model — Kenya Fields
+All of these are in the DB and exposed in the Add/Edit modals:
+- `kra_pin` — encrypted, validated `A001234567X`
+- `national_id` — encrypted
+- `nssf_number` — for NSSF remittance schedule
+- `shif_number` — for SHIF remittance schedule
+- `payroll_number` — internal reference
+- `nationality` — default "Kenyan"
+- `county`
+- `work_permit_number` — required for non-citizens
 
 ### Attendance
-- Clock-in/out with HTML5 GPS geolocation
-- Haversine formula geofence validation (warning-only, never blocks)
+- GPS geofencing (Haversine), warning-only
 - `is_public_holiday` and `is_sunday` flags auto-set on save
-- `overtime_rate` property: 2.0x on public holidays/Sundays, 1.5x on weekdays
-- Kenya's 12 statutory public holidays + Easter + Idd-ul-Fitr + Idd-ul-Adha (2024–2027)
-
-### Leave Management
-- Types: Annual (21 days), Sick (30 days), Maternity (90 days), Paternity (14 days), Unpaid
-- Two-stage approval: `pending` → `manager_approved` → `approved` | `rejected`
-- `LeaveBalance` tracks entitled vs used days per employee per year
-- Public holidays excluded from leave day count
+- `overtime_rate`: 2.0× public holidays/Sundays, 1.5× weekdays
+- Kenya 12 statutory holidays + Easter + Idd (2024–2027)
 
 ---
 
-## 8. Payroll Engine
+## Payroll Engine
 
-### Calculation Flow
-```
-1. Normalize Base Salary
-   monthly  → salary_basic
-   weekly   → salary_basic × 4
-   daily    → salary_basic × days_worked
-   hourly   → salary_basic × hours_worked
-
-2. Gross Pay = Base + Allowances + Overtime − Unpaid Leave Deduction
-   Weekday overtime:         monthly_salary / 160 × 1.5
-   Public holiday overtime:  monthly_salary / 160 × 2.0
-
-3. Statutory Deductions (all configurable per tenant via PayrollConfig)
-   NSSF   — new act: Tier I (6% up to LEL KES 7,000) + Tier II (6% LEL→UEL KES 36,000)
-             old act: flat KES 200 employee / KES 200 employer (toggle: nssf_act)
-   SHIF   — 2.75% of gross, minimum KES 300
-   AHL    — 1.5% employee + 1.5% employer
-   PAYE   — progressive KRA 2024/2025 bands after NSSF, minus KES 2,400 personal relief
-            10% ≤24k | 25% next 8,333 | 30% next 467,667 | 32.5% next 300k | 35% above
-
-4. Net Pay = Gross − NSSF − SHIF − AHL − PAYE
-```
+### Statutory Rates (all configurable in Settings → Payroll Config)
+| Deduction | Default | Config field |
+|---|---|---|
+| NSSF (new act) | Tier I 6% ≤ LEL (KES 7,000) + Tier II 6% ≤ UEL (KES 36,000) | `nssf_act`, `nssf_rate`, `nssf_lel`, `nssf_uel` |
+| NSSF (old act) | Flat KES 200 employee + KES 200 employer | `nssf_act = 'old'` |
+| SHIF | 2.75% of gross, minimum KES 300 | `shif_rate`, `shif_min` |
+| AHL | 1.5% employee + 1.5% employer | `ahl_rate` |
+| PAYE | Progressive KRA 2024/2025 bands, minus personal relief | `paye_bands`, `personal_relief` |
 
 ### Payroll Run Lifecycle
-`draft` → `processed` → `approved` → `paid` | `reversed`
-
-- **Reversal**: Creates a corrective draft run for the same period; auto-reverses the finance books journal entry
-
-### Payslip Delivery
-- Path A: S3 pre-signed URL (5-min expiry) if `payslip_s3_key` is set
-- Path B: On-the-fly ReportLab PDF generation (fallback)
-- Email delivery via Resend SMTP
+```
+draft → processed → approved → paid
+                 ↘           ↘
+                  reversed ← (from approved or paid)
+```
+Reversal creates a new corrective draft run and auto-reverses the finance JE.
 
 ---
 
-## 9. Finance Module
+## Finance Module
 
 ### Expense Claims
-- Employee submits: title, category, amount, date, receipt URL
-- Categories: Travel, Accommodation, Meals, Office Supplies, Client Entertainment, Utilities, Training, Medical, Other
-- Status workflow: `pending` → `approved` → `paid` | `rejected`
-- Finance Manager approves/rejects with comment; marks as paid after reimbursement
-- Auto-posts a journal entry to the books when marked as paid
+- Employees submit; Finance Manager approves/rejects/marks paid
+- Auto-posts DR 5xxx / CR 1102 Bank to finance books on payment
 
 ### Department Budgets
-- Finance Manager sets monthly budget per department
-- Real-time utilization = payroll cost + approved expenses vs budget
-- Alert at 80% utilization; red indicator when over budget
+- Monthly budget per department set by Finance Manager
+- Real-time: payroll cost + approved expenses vs budget
+- Amber alert at 80%, red at 100%
 
 ### Petty Cash
 - Named funds with opening balance and live current balance
-- Request types: Disbursement, Top-Up, Replenishment
-- Approval workflow: `pending` → `disbursed` | `rejected`
-- Fund balance auto-updated on disbursement
-- Low balance warning at KES 5,000
-- Auto-posts a journal entry on each disbursement
+- Request → approve → disburse workflow
+- Auto-posts DR 5xxx / CR 1101 Petty Cash on disbursement
 
 ---
 
-## 10. Finance Books — Double-Entry Bookkeeping
+## Finance Books — Double-Entry Bookkeeping
 
 ### Chart of Accounts
-- 50-account standard Kenyan SME COA auto-seeded on tenant creation
-- Account types: Assets (1xxx), Liabilities (2xxx), Equity (3xxx), Revenue (4xxx), Expenses (5xxx)
-- Hierarchical parent/child structure
-- System accounts cannot be deleted; custom accounts can be added
+50 standard Kenyan SME accounts auto-seeded on tenant creation:
+- 1xxx Assets (Cash, Bank KCB/Equity, M-Pesa Float, Receivables, Fixed Assets)
+- 2xxx Liabilities (PAYE Payable, NSSF, SHIF, AHL, Accounts Payable, Loans)
+- 3xxx Equity (Share Capital, Retained Earnings)
+- 4xxx Revenue (Sales, Service, Other Income)
+- 5xxx Expenses (Salaries, NSSF Employer, SHIF, AHL, Rent, Utilities, Travel, etc.)
 
-### Journal Entries
-- Every entry must balance: total debits = total credits
-- Sources: `MANUAL`, `PAYROLL` (auto), `EXPENSE` (auto), `PETTY` (auto)
-- Status: `DRAFT` → `POSTED` | `REVERSED`
-- Reversal creates a fully reversed entry with all debit/credit sides swapped
-
-### Auto-Posting
+### Auto-Posting Triggers
 | Trigger | Debit | Credit |
 |---|---|---|
-| Payroll approved | 5210 Salaries & Wages | 2210 PAYE + 2220 NSSF + 2230 SHIF + 2240 AHL + 1102 Bank |
-| Expense marked paid | 5xxx Expense account | 1102 Bank |
-| Petty cash disbursed | 5xxx Expense account | 1101 Petty Cash |
+| Payroll approved | 5210 Salaries (gross) | 2210 PAYE + 2220 NSSF + 2230 SHIF + 2240 AHL + 1102 Bank (net) |
+| Expense claim paid | 5xxx by category | 1102 Bank |
+| Petty cash disbursed | 5xxx by category | 1101 Petty Cash |
 
-### Financial Reports
-- **Trial Balance** — all accounts with debit/credit totals
-- **Income Statement** — Revenue, COGS, Gross Profit, Operating Expenses, Net Profit/Loss
-- **Balance Sheet** — Assets = Liabilities + Equity + Net Income
-- **General Ledger** — Per-account running balance transaction history
+### Reports
+Income Statement, Balance Sheet, Trial Balance, General Ledger — all with date pickers.
 
 ---
 
-## 11. M-Pesa Integration
+## M-Pesa Integration
 
-### B2C — Salary Disbursement
-- Disburses net pay to employees' M-Pesa numbers after payroll approval
-- Uses Safaricom Daraja B2C API with `SalaryPayment` CommandID
-- Phone number normalization: `07xx → 2547xx`
-- Sandbox mode: simulates disbursement without sending real money
-- Callbacks: `/api/mpesa/b2c/result/` and `/api/mpesa/b2c/timeout/`
-- `MpesaTransaction` model tracks status: `pending` | `success` | `failed` | `timeout`
+- **B2C**: Salary disbursement to employee M-Pesa numbers. Sandbox by default.
+- **STK Push**: Subscription plan upgrades. Callback at `/api/mpesa/stk-push-callback/`.
+- Phone normalisation: `07xx → 2547xx`
+- `MpesaTransaction` status: `pending | success | failed | timeout`
 
-### STK Push — Subscription Payments
-- Used when a tenant upgrades their plan
-- Initiates M-Pesa push notification to admin's phone
-- Callback: `/api/mpesa/stk-push-callback/`
-
-### Switching to Production
-Change `.env`:
-```
-MPESA_ENABLED=True
-MPESA_ENVIRONMENT=production
-```
-Replace sandbox credentials with Safaricom production credentials.
+**To go live:** `MPESA_ENVIRONMENT=production` + Safaricom production credentials.
 
 ---
 
-## 12. Authentication & Security
+## Authentication & Security
 
-### Clerk JWT Authentication
-1. Reads `kid` from token header
-2. Verifies `iss` against `CLERK_ISSUER`
-3. Fetches Clerk JWKS, caches keys for 1 hour
-4. Decodes RS256 token; skips audience validation if `CLERK_AUDIENCE` is blank
-5. Resolves `sub` (Clerk user ID) → Django `User`
-
-### Field-Level Encryption
-AES-256-GCM encryption on: `kra_pin`, `national_id`, `mpesa_number`, `bank_details`
-Required: `MASTER_ENCRYPTION_KEY` (base64-encoded 32-byte key) — app refuses to start without it.
-
-### KRA PIN Validation
-Format: `A001234567X` (letter + 9 digits + letter)
-Validated on both frontend (live, on blur) and backend serializer.
-
-### HTTP Security Headers
-`HSTS`, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`
-
-### Rate Limiting
-Anonymous: 30/min | Authenticated: 120/min | Login: 10/min | Registration: 5/hour
-
-### Webhook Security
-All Clerk webhooks verified using Svix HMAC signature (`CLERK_WEBHOOK_SECRET`).
+- Clerk JWT/RS256, JWKS cached 1 hour, audience validation skipped when `CLERK_AUDIENCE` is blank
+- AES-256-GCM on `kra_pin`, `national_id`, `mpesa_number`, `bank_details`
+- `MASTER_ENCRYPTION_KEY` required at startup
+- KRA PIN regex validation both layers
+- Rate limiting: anon 30/min, auth 120/min, login 10/min, register 5/hour
+- `proxy.ts` Clerk middleware: explicit public route matcher
 
 ---
 
-## 13. Notifications System
+## Notifications System
 
-### Backend Signals
-| Trigger | Recipients | Type |
-|---|---|---|
-| Leave submitted | All ADMIN + HR in tenant | `leave` |
-| Leave approved/rejected | Requesting employee | `leave` |
-| Payroll run processed | All ADMIN + HR in tenant | `payroll` |
-| New employee added | All ADMIN in tenant | `employee` |
-| Bulk CSV import | All ADMIN in tenant (one summary) | `employee` |
+### Signals
+| Trigger | Recipients |
+|---|---|
+| Leave submitted | ADMIN + HR |
+| Leave approved/rejected | Requesting employee |
+| Payroll processed | ADMIN + HR |
+| New employee | ADMIN (bulk import sends one summary) |
 
 ### Frontend
-- Bell icon in topbar shows unread count
-- Notification panel: list with mark-read, dismiss, "View all" link
-- Full `/notifications` page with All/Unread/Read tabs and category filters
+- Bell icon with unread count
+- Panel with mark-read, dismiss, view all
+- Full `/notifications` page with tabs and category filters
 
 ---
 
-## 14. Audit Trail
+## Audit Trail
 
-- `AuditLog` model — append-only at ORM level and PostgreSQL trigger level
-- HMAC-SHA256 integrity seal per row (tamper detection)
-- Recorded actions: `CREATE`, `UPDATE`, `DELETE`, `LOGIN`, `PAYROLL_RUN`, `PAYROLL_APPROVE`, `EXPORT`, `PERMISSION_CHANGE`, `WEBHOOK`
-- Each entry: `actor_id`, `actor_email`, `tenant`, `action`, `resource_type`, `resource_id`, `ip_address`, `user_agent`, `payload` (before/after diff), `integrity_seal`, `timestamp`
-- Satisfies Kenya Data Protection Act 2019 §25 accountability requirements
+- Append-only at ORM + PostgreSQL trigger level
+- HMAC-SHA256 integrity seal per row
+- Actions: CREATE, UPDATE, DELETE, LOGIN, PAYROLL_RUN, PAYROLL_APPROVE, EXPORT, PERMISSION_CHANGE, WEBHOOK
+- LOGIN entries include IP geolocation
 
 ---
 
-## 15. REST API Reference
+## PWA & Public Marketing Site
 
-All endpoints prefixed `/api/` and require Clerk Bearer JWT unless noted.
+### Landing Page (`/`)
+- Product features, role cards, testimonials, pricing teaser
+- `AuthRedirect`: authenticated users → `/dashboard`
+- Download App button (Chrome/Android: install prompt; iOS: modal instructions)
+
+### Service Worker (`/sw.js`)
+- Cache-first for JS/CSS/fonts/images
+- **Network-only for ALL `/api/*`** — payroll/finance data never cached
+- Network-first for HTML navigation
+
+### Manifest (`/manifest.json`)
+- Icons: 192px, 512px, 512px maskable
+- Shortcuts: Payroll, Employees
+
+---
+
+## Email System
+
+All emails are sent via Resend SMTP from `onboarding@resend.dev`.
+
+### Invite Email
+- Branded HTML with credentials box (email + temp password)
+- Teal CTA button linking directly to login page with email pre-filled
+- Security reminder to change password
+
+### Payslip Email
+- Branded HTML pay summary table (Gross → Deductions → Net)
+- Full itemised deductions (PAYE, NSSF, SHIF, AHL)
+- PDF payslip attached
+
+Both use `EmailMultiAlternatives` (text + HTML) for email client compatibility.
+
+---
+
+## REST API Reference
 
 ### Auth & Users
 | Method | Path | Description |
 |---|---|---|
-| GET/PATCH | `/api/users/me/` | User profile — PATCH updates first/last name |
-| POST | `/api/users/invite/` | Invite team member (generates temp password, emails credentials) |
-| GET | `/api/users/team/` | List all team members |
-| DELETE | `/api/users/team/<id>/remove/` | Remove active member (deletes from DB + Clerk) |
+| GET/PATCH | `/api/users/me/` | Profile (PATCH updates first/last name) |
+| POST | `/api/users/invite/` | Invite — generates password, creates Clerk user, sends HTML email |
+| GET | `/api/users/team/` | List team members |
+| DELETE | `/api/users/team/<id>/remove/` | Remove member (Django DB + Clerk) |
 | DELETE | `/api/users/invite/<id>/` | Revoke pending invite |
 
 ### HR
 | Method | Path | Description |
 |---|---|---|
-| GET/POST | `/api/employees/` | List / create employees |
-| GET/PATCH/DELETE | `/api/employees/<id>/` | Employee detail |
-| POST | `/api/employees/bulk_import/` | CSV import (upsert by email) |
+| GET/POST | `/api/employees/` | List/create |
+| PATCH | `/api/employees/<id>/` | Update (all Kenya statutory fields) |
+| POST | `/api/employees/bulk_import/` | CSV upsert |
 | GET/POST | `/api/attendance/` | Attendance log |
 | GET/POST | `/api/leave/` | Leave requests |
 | POST | `/api/leave/<id>/approve/` | Final approval |
-| POST | `/api/leave/<id>/manager_approve/` | First-stage approval |
-| POST | `/api/leave/<id>/reject/` | Reject |
+| POST | `/api/leave/<id>/manager_approve/` | Stage 1 approval |
+| GET/PATCH | `/api/leave/policy/` | Leave policy |
 
 ### Payroll
 | Method | Path | Description |
 |---|---|---|
-| GET/POST | `/api/payroll/` | Payroll runs |
-| POST | `/api/payroll/<id>/process/` | Trigger async calculation |
-| POST | `/api/payroll/<id>/approve/` | Approve (auto-posts to finance books) |
-| POST | `/api/payroll/<id>/reverse/` | Reverse (creates corrective draft run) |
-| POST | `/api/payroll/<id>/send-payslips/` | Generate PDFs + email |
-| POST | `/api/payroll/<id>/disburse-mpesa/` | M-Pesa B2C disbursement |
-| GET | `/api/payroll/<id>/bank-export/` | Bank EFT export |
-| GET | `/api/payslips/<id>/download/` | Download payslip |
+| GET/POST | `/api/payroll/` | Runs |
+| POST | `/api/payroll/<id>/process/` | Trigger calculation |
+| POST | `/api/payroll/<id>/approve/` | Approve → auto-posts finance JE |
+| POST | `/api/payroll/<id>/reverse/` | Reverse → creates corrective draft |
+| POST | `/api/payroll/<id>/send-payslips/` | HTML email + PDF attachment |
+| POST | `/api/payroll/<id>/disburse-mpesa/` | M-Pesa B2C |
+| GET | `/api/payroll/<id>/bank-export/?bank=equity` | EFT file |
+| GET | `/api/payslips/<id>/download/` | S3 pre-signed URL or on-the-fly PDF |
 
 ### Finance
 | Method | Path | Description |
 |---|---|---|
 | GET/POST | `/api/finance/expenses/` | Expense claims |
 | POST | `/api/finance/expenses/<id>/approve/` | Approve |
-| POST | `/api/finance/expenses/<id>/reject/` | Reject |
-| POST | `/api/finance/expenses/<id>/mark-paid/` | Mark reimbursed (auto-posts to books) |
+| POST | `/api/finance/expenses/<id>/mark-paid/` | Paid → auto-posts JE |
 | GET/POST | `/api/finance/budgets/` | Department budgets |
-| GET | `/api/finance/budgets/utilization/` | Budget vs actual spend |
+| GET | `/api/finance/budgets/utilization/` | Real-time utilization |
 | GET/POST | `/api/finance/petty-cash/` | Petty cash funds |
-| GET | `/api/finance/summary/` | Finance dashboard KPIs |
+| GET | `/api/finance/summary/` | Finance KPIs |
 | GET/POST | `/api/finance/accounts/` | Chart of Accounts |
-| POST | `/api/finance/accounts/seed/` | Seed standard Kenyan COA |
+| POST | `/api/finance/accounts/seed/` | Seed standard COA |
 | GET/POST | `/api/finance/journal/` | Journal entries |
-| POST | `/api/finance/journal/<id>/post_entry/` | Post draft entry |
+| POST | `/api/finance/journal/<id>/post_entry/` | Post draft |
 | POST | `/api/finance/journal/<id>/reverse/` | Reverse posted entry |
 | GET | `/api/finance/trial-balance/` | Trial balance |
-| GET | `/api/finance/income-statement/` | P&L statement |
+| GET | `/api/finance/income-statement/` | P&L |
 | GET | `/api/finance/balance-sheet/` | Balance sheet |
-| GET | `/api/finance/general-ledger/` | General ledger |
+| GET | `/api/finance/general-ledger/` | Ledger |
 
 ### Reports & Settings
 | Method | Path | Description |
@@ -410,115 +448,100 @@ All endpoints prefixed `/api/` and require Clerk Bearer JWT unless noted.
 | POST | `/api/reports/` | CSV export builder |
 | GET | `/api/reports/p9/` | KRA P9 Annual |
 | GET | `/api/reports/p10/` | KRA P10 Monthly |
-| GET | `/api/reports/nssf/` | NSSF schedule |
+| GET | `/api/reports/nssf/` | NSSF schedule (NSSF number + National ID columns) |
 | GET | `/api/reports/shif/` | SHIF + AHL schedule |
-| GET | `/api/dashboard/stats/` | Dashboard KPIs |
+| GET | `/api/dashboard/stats/` | KPIs |
 | GET | `/api/audit-trail/` | Audit log (ADMIN only) |
-| GET/PATCH | `/api/settings/company/` | Company settings |
-| GET/PATCH | `/api/settings/payroll/` | Payroll statutory config |
+| GET/PATCH | `/api/settings/payroll/` | NSSF act + all statutory rates |
 
 ---
 
-## 16. Frontend — Pages & Dashboards
+## Frontend Pages & Dashboards
 
-| Route | Role Access | Description |
+| Route | Role | Description |
 |---|---|---|
-| `/` | ADMIN | CEO Dashboard — 6 KPIs, financial overview, dept headcount |
-| `/hr` | ADMIN, HR | HR Dashboard — people operations KPIs, quick actions |
-| `/finance` | ADMIN, FINANCE | Finance Dashboard — KPIs, budget utilization, expense breakdown |
+| `/` | Public | Marketing landing page |
+| `/pricing` | Public | Pricing with monthly/annual toggle |
+| `/auth/login` | Public | Login with toast errors + Clerk SignIn |
+| `/auth/register` | Public | New company registration |
+| `/auth/accept-invite` | Public | Sign-out existing session → redirect to login |
+| `/dashboard` | ADMIN | CEO Dashboard (HR + Finance combined) |
+| `/hr` | ADMIN, HR | HR Dashboard |
+| `/finance` | ADMIN, FINANCE | Finance Dashboard |
 | `/employee` | EMPLOYEE | Self-service dashboard |
-| `/employees` | ADMIN, HR | Employee directory + CSV import |
-| `/attendance` | All | Clock in/out, presence matrix, logs |
+| `/employees` | ADMIN, HR | Directory + CSV import |
+| `/attendance` | All | Clock in/out, presence matrix |
 | `/leave` | All | Leave requests + approvals |
-| `/payroll` | ADMIN, HR | Payroll runs |
-| `/reports` | ADMIN, HR | CSV report builder + statutory exports |
+| `/payroll` | ADMIN, HR | Payroll runs with reversal button |
+| `/reports` | ADMIN, HR | CSV + statutory exports |
 | `/finance/expenses` | All | Expense claims |
-| `/finance/budgets` | ADMIN, FINANCE | Department budgets |
+| `/finance/budgets` | ADMIN, FINANCE | Budgets + utilization |
 | `/finance/petty-cash` | ADMIN, FINANCE | Petty cash funds |
 | `/finance/books/accounts` | ADMIN, FINANCE, HR | Chart of Accounts |
 | `/finance/books/journal` | ADMIN, FINANCE | Journal entries |
 | `/finance/books/reports` | ADMIN, FINANCE, HR | P&L, Balance Sheet, Trial Balance |
-| `/notifications` | All | Notification inbox |
+| `/manager/self-service` | All | Payslip download + leave requests |
+| `/notifications` | All | Inbox |
 | `/audit` | ADMIN | Audit trail |
-| `/settings` | All | Profile, company, payroll config, team, security |
-| `/settings/billing` | ADMIN | Subscription plan + M-Pesa upgrade |
-| `/pricing` | Public | Pricing page with monthly/annual toggle |
+| `/settings` | All | Profile, company, payroll config (NSSF toggle), team, security |
+| `/settings/billing` | ADMIN | Subscription + M-Pesa upgrade |
 
 ---
 
-## 17. Subscription Plans & Billing
+## Subscription Plans & Billing
 
-| Plan | Max Employees | Price (Monthly) | Price (Annual) |
+| Plan | Employees | Monthly | Annual (10 months) |
 |---|---|---|---|
-| **Starter** | 15 | KES 3,500 | KES 35,000 (2 months free) |
-| **Growth** | 75 | KES 12,000 | KES 120,000 (2 months free) |
-| **Business** | 300 | KES 35,000 | KES 350,000 (2 months free) |
-| **Enterprise** | Unlimited | Contact us | Contact us |
+| Starter | 1–15 | KES 3,500 | KES 35,000 |
+| Growth | 16–75 | KES 12,000 | KES 120,000 |
+| Business | 76–300 | KES 35,000 | KES 350,000 |
+| Enterprise | Unlimited | Contact | Contact |
 
-- Plan upgrades paid via M-Pesa STK Push
 - 14-day free trial on registration
-- Trial expiry warning banner shown at ≤7 days remaining
+- Trial expiry banner shown at ≤7 days
+- Upgrades via M-Pesa STK Push
 
 ---
 
-## 18. Environment Configuration
-
-### Backend (`.env`)
-| Variable | Required | Description |
-|---|---|---|
-| `DJANGO_SECRET_KEY` | Yes | Django secret key |
-| `DJANGO_DEBUG` | Yes | `True` for dev, `False` for production |
-| `MASTER_ENCRYPTION_KEY` | Yes | Base64 32-byte AES key — app won't start without it |
-| `DATABASE_URL` | Prod | Supabase PostgreSQL connection string |
-| `REDIS_URL` | Prod | Redis URL (blank = synchronous Celery in dev) |
-| `CLERK_ISSUER` | Yes | Clerk tenant issuer URL |
-| `CLERK_JWKS_URL` | Yes | Clerk JWKS endpoint |
-| `CLERK_SECRET_KEY` | Yes | Clerk backend secret key |
-| `CLERK_WEBHOOK_SECRET` | Yes | Svix webhook signature secret |
-| `EMAIL_HOST` / `EMAIL_HOST_PASSWORD` | Prod | SMTP credentials (Resend) |
-| `MPESA_ENABLED` | No | `True` to enable M-Pesa |
-| `MPESA_ENVIRONMENT` | No | `sandbox` or `production` |
-
-### Frontend (Vercel env vars)
-| Variable | Description |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | Backend API base URL |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
-| `CLERK_SECRET_KEY` | Clerk secret key |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/auth/login` |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/auth/register` |
-
----
-
-## 19. Deployment
+## Deployment
 
 ### Local Development
 ```bash
-# Terminal 1 — Backend
-cd backend
-. .venv/bin/activate
-python manage.py runserver
+# Terminal 1
+cd backend && . .venv/bin/activate && python manage.py runserver
 
-# Terminal 2 — Frontend
-cd frontend
-npm run dev
+# Terminal 2
+cd frontend && npm run dev
 ```
 
-### Recommended Production Stack
+### Production Stack (Railway + Vercel)
 | Service | Platform |
 |---|---|
-| Frontend | Vercel (zero-config Next.js) |
-| Backend + Celery worker | Railway |
+| Frontend | Vercel |
+| Backend + Celery | Railway |
 | Redis | Railway Redis service |
-| Database | Supabase (primary: eu-central-1, backup: eu-west-1) |
-| Email | Resend (SMTP) |
-| Domain | `workwise.co.ke` via Namecheap/KENIC |
+| Database | Supabase (primary + backup) |
+| Email | Resend |
 
 ### Production Checklist
-- [ ] Set `DJANGO_DEBUG=False`
-- [ ] Set `DJANGO_SECURE_SSL=True`
-- [ ] Configure Clerk production instance with real domain
-- [ ] Register Clerk webhook pointing to Railway backend URL
-- [ ] Set `MPESA_ENVIRONMENT=production` with real Daraja credentials
-- [ ] Configure `AWS_PAYSLIPS_BUCKET` for S3 payslip storage
-- [ ] Set up custom domain and TLS in Nginx/Railway
+- [ ] Generate fresh `MASTER_ENCRYPTION_KEY` for production
+- [ ] Set `DJANGO_DEBUG=False` and `DJANGO_SECURE_SSL=True`
+- [ ] Set up Clerk production instance (requires `.com` / `.co.ke` domain)
+- [ ] Register Clerk webhook → `https://api.workwise.co.ke/api/webhooks/clerk/`
+- [ ] Switch M-Pesa to production (`MPESA_ENVIRONMENT=production`)
+- [ ] Configure `AWS_PAYSLIPS_BUCKET` for S3 payslip storage (optional)
+- [ ] Set custom domain in Railway + Vercel
+
+---
+
+## What Remains (Credentials Only)
+
+All coding is complete. Only external service credentials are needed:
+
+| Item | What you need to do |
+|---|---|
+| **Domain** | Buy `workwise.co.ke` (~KES 1,500/year). Required for Clerk production + M-Pesa callbacks |
+| **Clerk production** | Create production instance at clerk.com using your domain. Swap `pk_test_` → `pk_live_` |
+| **M-Pesa go-live** | Apply at developer.safaricom.co.ke. Swap sandbox credentials for production |
+| **AWS S3** | Create private bucket, add 3 AWS env vars. Falls back to on-the-fly PDF without it |
+| **Production encryption key** | `python -c "import os,base64; print(base64.b64encode(os.urandom(32)).decode())"` |
