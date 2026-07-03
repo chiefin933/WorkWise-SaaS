@@ -324,9 +324,12 @@ class FinancialSummaryView(APIView):
         pending_count     = expenses_qs.filter(status='pending').count()
 
         # ── Petty cash balance ────────────────────────────────────────────────
-        petty_balance = PettyCashFund.objects.filter(
-            tenant=tenant, is_active=True
-        ).aggregate(t=Sum('current_balance'))['t'] or Decimal('0')
+        # PettyCashFund uses TenantScopedModel — access via employee__tenant path
+        # The fund is directly tenant-scoped, use the objects manager which auto-scopes
+        from finance.models import PettyCashFund as PCF
+        petty_balance = PCF.objects.filter(is_active=True).aggregate(
+            t=Sum('current_balance')
+        )['t'] or Decimal('0')
 
         # ── Budget utilization ────────────────────────────────────────────────
         budgets = DepartmentBudget.objects.filter(
