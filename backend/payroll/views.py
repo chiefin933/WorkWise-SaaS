@@ -587,30 +587,38 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
                 pdf_buffer = self._generate_payslip_pdf(item, tenant)
                 month_name = datetime.date(payroll_run.year, payroll_run.month, 1).strftime('%B %Y')
 
-                email = EmailMessage(
-                    subject=f"Your {month_name} Payslip — {tenant.name}",
+                from core.email_templates import payslip_email_html
+                payslip_subject, html_body = payslip_email_html(
+                    employee_name=emp.name,
+                    company_name=tenant.name,
+                    month_name=month_name,
+                    gross_salary=float(item.gross_salary),
+                    paye=float(item.paye),
+                    nssf=float(item.nssf),
+                    shif=float(item.shif),
+                    ahl=float(item.ahl),
+                    net_pay=float(item.net_pay),
+                )
+                from django.core.mail import EmailMultiAlternatives
+                email_msg = EmailMultiAlternatives(
+                    subject=payslip_subject,
                     body=(
                         f"Dear {emp.name},\n\n"
-                        f"Please find attached your official payslip for {month_name}.\n\n"
-                        f"Summary:\n"
-                        f"  Gross Pay:    KES {item.gross_salary:,.2f}\n"
-                        f"  PAYE:         KES {item.paye:,.2f}\n"
-                        f"  NSSF:         KES {item.nssf:,.2f}\n"
-                        f"  SHIF:         KES {item.shif:,.2f}\n"
-                        f"  Housing Levy: KES {item.ahl:,.2f}\n"
-                        f"  Net Pay:      KES {item.net_pay:,.2f}\n\n"
-                        f"This is a system-generated document. Please do not reply to this email.\n\n"
-                        f"Regards,\n{tenant.name} HR Team\nPowered by WorkWise"
+                        f"Your {month_name} payslip from {tenant.name} is attached.\n\n"
+                        f"Gross: KES {item.gross_salary:,.2f} | Net: KES {item.net_pay:,.2f}\n\n"
+                        f"Powered by WorkWise"
                     ),
+                    from_email=f"WorkWise <onboarding@resend.dev>",
                     to=[emp.email],
                 )
+                email_msg.attach_alternative(html_body, "text/html")
                 safe_name = emp.name.replace(' ', '_').lower()
-                email.attach(
+                email_msg.attach(
                     f"payslip_{safe_name}_{payroll_run.month}_{payroll_run.year}.pdf",
                     pdf_buffer.getvalue(),
                     'application/pdf'
                 )
-                email.send(fail_silently=False)
+                email_msg.send(fail_silently=False)
                 sent_count += 1
                 logger.info("Payslip emailed to %s for run %s", emp.email, payroll_run.id)
 

@@ -234,7 +234,7 @@ export default function SelfServicePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <Link
-            href="/"
+            href="/employee"
             className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="h-4 w-4" /> Dashboard

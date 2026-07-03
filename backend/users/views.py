@@ -283,26 +283,31 @@ class InviteUserView(APIView):
         role_display = {'HR': 'HR Manager', 'FINANCE': 'Finance Manager', 'EMPLOYEE': 'Employee'}.get(role, role)
         company_from_email = f"WorkWise <onboarding@resend.dev>"
 
-        send_mail(
-            subject=f"You've been invited to join {tenant.name} on WorkWise",
-            message=(
+        from core.email_templates import invite_email_html
+        subject, html_body = invite_email_html(
+            first_name=first_name or 'there',
+            admin_name=admin_name,
+            company_name=tenant.name,
+            role_display=role_display,
+            email=email,
+            temp_password=temp_password,
+            login_url=login_url,
+        )
+
+        from django.core.mail import EmailMultiAlternatives
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=(
                 f"Hi {first_name or 'there'},\n\n"
                 f"{admin_name} has added you to {tenant.name} on WorkWise as {role_display}.\n\n"
-                f"Your login credentials:\n"
-                f"  Email:    {email}\n"
-                f"  Password: {temp_password}\n\n"
-                f"Click the link below to sign in:\n"
-                f"  {login_url}\n\n"
-                f"For security, please change your password after your first login:\n"
-                f"  Go to Settings → Security → Change Password\n\n"
-                f"This email is confidential. Do not share your password with anyone.\n\n"
-                f"— The {tenant.name} Team\n"
-                f"Powered by WorkWise"
+                f"Email:    {email}\nPassword: {temp_password}\n\nSign in: {login_url}\n\n"
+                f"Change your password after first login: Settings → Security → Change Password"
             ),
-            from_email=company_from_email,
-            recipient_list=[email],
-            fail_silently=False,
+            from_email=f"WorkWise <onboarding@resend.dev>",
+            to=[email],
         )
+        msg.attach_alternative(html_body, "text/html")
+        msg.send(fail_silently=False)
 
         logger.info(
             "Invited user %s as %s to tenant %s (clerk_id=%s)",
