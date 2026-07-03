@@ -3,25 +3,54 @@ import { NextResponse } from 'next/server';
 
 // Routes that do NOT require authentication
 const isPublicRoute = createRouteMatcher([
+  // Marketing
+  '/',
+  '/pricing(.*)',
+
+  // Auth flows
   '/auth/login(.*)',
   '/auth/register(.*)',
   '/auth/accept-invite(.*)',
+
+  // PWA + static files — must never be redirected to login
+  '/manifest.json',
+  '/sw.js',
+  '/icons(.*)',
+  '/robots.txt',
+  '/favicon.ico',
+  '/screenshots(.*)',
+
+  // Webhooks & M-Pesa callbacks — server-to-server, no Clerk session
   '/api/webhooks(.*)',
-  '/pricing(.*)',
+  '/api/mpesa(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
 
-  // Signed-in user hitting a public auth page → send to dashboard
-  // Exception: accept-invite is allowed even when signed in (account switching)
+  // Signed-in user hitting a public auth page → send to their dashboard
+  // Exception: accept-invite handles its own redirect logic (account switching)
   if (userId && isPublicRoute(req)) {
-    if (req.nextUrl.pathname.startsWith('/auth/accept-invite')) {
+    const path = req.nextUrl.pathname;
+
+    // Don't redirect PWA assets, webhooks, or the marketing home page
+    if (
+      path === '/' ||
+      path === '/manifest.json' ||
+      path === '/sw.js' ||
+      path.startsWith('/icons') ||
+      path.startsWith('/api/') ||
+      path.startsWith('/auth/accept-invite')
+    ) {
       return NextResponse.next();
     }
-    const dashboardUrl = req.nextUrl.clone();
-    dashboardUrl.pathname = '/';
-    return NextResponse.redirect(dashboardUrl);
+
+    // Redirect signed-in users away from /auth/login and /auth/register
+    if (path.startsWith('/auth/')) {
+      const dashboardUrl = req.nextUrl.clone();
+      dashboardUrl.pathname = '/dashboard';
+      return NextResponse.redirect(dashboardUrl);
+    }
   }
 
   // All non-public routes require authentication
@@ -32,8 +61,8 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static assets
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Skip Next.js internals and static file extensions
+    '/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|woff2?|ttf|otf)).*)',
     '/(api|trpc)(.*)',
     '/__clerk/(.*)',
   ],
