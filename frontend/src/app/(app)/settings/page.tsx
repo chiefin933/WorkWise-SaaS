@@ -143,7 +143,10 @@ export default function SettingsPage() {
   });
 
   const [payrollForm, setPayrollForm] = useState({
+    nssf_act: 'new',
     nssf_rate: '6',
+    nssf_lel: '7000',
+    nssf_uel: '36000',
     nssf_cap: '4320',
     shif_rate: '2.75',
     shif_min: '300',
@@ -216,7 +219,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (payrollConfig) {
       setPayrollForm({
+        nssf_act: payrollConfig.nssf_act || 'new',
         nssf_rate: String((parseFloat(payrollConfig.nssf_rate) * 100).toFixed(2)),
+        nssf_lel: String(parseFloat(payrollConfig.nssf_lel || '7000')),
+        nssf_uel: String(parseFloat(payrollConfig.nssf_uel || '36000')),
         nssf_cap: String(parseFloat(payrollConfig.nssf_cap)),
         shif_rate: String((parseFloat(payrollConfig.shif_rate) * 100).toFixed(2)),
         shif_min: String(parseFloat(payrollConfig.shif_min)),
@@ -278,7 +284,10 @@ export default function SettingsPage() {
           return;
         }
         const payload = {
+          nssf_act: payrollForm.nssf_act,
           nssf_rate: parseFloat(payrollForm.nssf_rate) / 100,
+          nssf_lel: parseFloat(payrollForm.nssf_lel),
+          nssf_uel: parseFloat(payrollForm.nssf_uel),
           nssf_cap: parseFloat(payrollForm.nssf_cap),
           shif_rate: parseFloat(payrollForm.shif_rate) / 100,
           shif_min: parseFloat(payrollForm.shif_min),
@@ -581,76 +590,138 @@ export default function SettingsPage() {
 
             {activeTab === 'payroll' && (
               <div className="space-y-6">
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-6">Payroll Configuration</h3>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-2">Payroll Configuration</h3>
+                <p className="text-sm text-slate-500 mb-6">All statutory rates apply to your next payroll run. Changes are saved immediately.</p>
                 {isPayrollLoading ? (
                   <div className="flex justify-center items-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Rate (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={payrollForm.nssf_rate} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, nssf_rate: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
+                  <div className="space-y-8">
+
+                    {/* ── NSSF Section ────────────────────────────────────── */}
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        NSSF — National Social Security Fund
+                      </h4>
+
+                      {/* NSSF Act toggle */}
+                      <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 mb-4">
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">NSSF Act</p>
+                        <p className="text-xs text-slate-500 mb-3">
+                          Courts have issued injunctions on the new NSSF Act. Switch to the old flat rate if your legal counsel recommends it.
+                        </p>
+                        <div className="flex gap-3">
+                          {[
+                            { value: 'new', label: 'New Act 2013', desc: 'Tier I (6% up to KES 7,000) + Tier II (6% up to KES 36,000)' },
+                            { value: 'old', label: 'Old Act', desc: 'Flat KES 200 employee / KES 200 employer' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              disabled={user?.role !== 'ADMIN'}
+                              onClick={() => setPayrollForm(f => ({ ...f, nssf_act: opt.value }))}
+                              className={`flex-1 p-3 rounded-xl border-2 text-left transition-all disabled:cursor-not-allowed ${
+                                payrollForm.nssf_act === opt.value
+                                  ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                              }`}
+                            >
+                              <p className={`text-sm font-bold ${payrollForm.nssf_act === opt.value ? 'text-teal-700 dark:text-teal-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                {opt.label}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* NSSF fields — only relevant for new act */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Rate (%)</label>
+                          <input type="number" step="0.01" value={payrollForm.nssf_rate}
+                            onChange={e => setPayrollForm({ ...payrollForm, nssf_rate: e.target.value })}
+                            disabled={user?.role !== 'ADMIN' || payrollForm.nssf_act === 'old'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">
+                            Lower Earnings Limit — LEL (KES)
+                            <span className="ml-1 text-xs font-normal text-slate-400">Tier I ceiling</span>
+                          </label>
+                          <input type="number" value={payrollForm.nssf_lel}
+                            onChange={e => setPayrollForm({ ...payrollForm, nssf_lel: e.target.value })}
+                            disabled={user?.role !== 'ADMIN' || payrollForm.nssf_act === 'old'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">
+                            Upper Earnings Limit — UEL (KES)
+                            <span className="ml-1 text-xs font-normal text-slate-400">Tier II ceiling</span>
+                          </label>
+                          <input type="number" value={payrollForm.nssf_uel}
+                            onChange={e => setPayrollForm({ ...payrollForm, nssf_uel: e.target.value })}
+                            disabled={user?.role !== 'ADMIN' || payrollForm.nssf_act === 'old'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Cap (KES)</label>
+                          <input type="number" value={payrollForm.nssf_cap}
+                            onChange={e => setPayrollForm({ ...payrollForm, nssf_cap: e.target.value })}
+                            disabled={user?.role !== 'ADMIN'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">NSSF Cap (KES)</label>
-                      <input 
-                        type="number" 
-                        value={payrollForm.nssf_cap} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, nssf_cap: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
+
+                    {/* ── SHIF Section ─────────────────────────────────────── */}
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">SHIF — Social Health Insurance Fund</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Rate (%)</label>
+                          <input type="number" step="0.01" value={payrollForm.shif_rate}
+                            onChange={e => setPayrollForm({ ...payrollForm, shif_rate: e.target.value })}
+                            disabled={user?.role !== 'ADMIN'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Minimum (KES)</label>
+                          <input type="number" value={payrollForm.shif_min}
+                            onChange={e => setPayrollForm({ ...payrollForm, shif_min: e.target.value })}
+                            disabled={user?.role !== 'ADMIN'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 text-slate-900 dark:text-white" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Rate (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={payrollForm.shif_rate} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, shif_rate: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
+
+                    {/* ── AHL + PAYE Section ───────────────────────────────── */}
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">AHL & PAYE</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Housing Levy — AHL Rate (%)</label>
+                          <input type="number" step="0.01" value={payrollForm.ahl_rate}
+                            onChange={e => setPayrollForm({ ...payrollForm, ahl_rate: e.target.value })}
+                            disabled={user?.role !== 'ADMIN'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 text-slate-900 dark:text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">PAYE Personal Relief (KES/month)</label>
+                          <input type="number" value={payrollForm.personal_relief}
+                            onChange={e => setPayrollForm({ ...payrollForm, personal_relief: e.target.value })}
+                            disabled={user?.role !== 'ADMIN'}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-teal-500 disabled:opacity-50 text-slate-900 dark:text-white" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">SHIF Minimum (KES)</label>
-                      <input 
-                        type="number" 
-                        value={payrollForm.shif_min} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, shif_min: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">AHL Rate (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={payrollForm.ahl_rate} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, ahl_rate: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Personal Relief (KES)</label>
-                      <input 
-                        type="number" 
-                        value={payrollForm.personal_relief} 
-                        onChange={(e) => setPayrollForm({ ...payrollForm, personal_relief: e.target.value })}
-                        className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3 outline-none" 
-                        disabled={user?.role !== 'ADMIN'}
-                      />
-                    </div>
+
+                    {user?.role !== 'ADMIN' && (
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <Lock className="h-3.5 w-3.5" /> Only the company Administrator can change payroll statutory rates.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

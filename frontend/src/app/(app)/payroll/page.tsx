@@ -33,6 +33,7 @@ import {
   Smartphone,
   Building2,
   Lock,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -50,7 +51,26 @@ export default function PayrollPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [selectedDisburseRun, setSelectedDisburseRun] = useState<PayrollRun | null>(null);
   const [selectedBankExportRun, setSelectedBankExportRun] = useState<PayrollRun | null>(null);
+  const [reversingId, setReversingId] = useState<string | null>(null);
   const [sendPayslipsConfirm, setSendPayslipsConfirm] = useState<PayrollRun | null>(null);
+
+  const handleReverse = async (run: PayrollRun) => {
+    if (!confirm(
+      `Reverse the ${monthLabel(run.month, run.year)} payroll run?\n\n` +
+      `This will mark this run as "reversed" and create a new draft run for the same period so you can correct and reprocess it.`
+    )) return;
+    setReversingId(run.id);
+    try {
+      const res = await api.post(`/payroll/${run.id}/reverse/`);
+      invalidatePayroll();
+      showToast(`Payroll reversed. Corrective draft run created (${res.data.corrective_run_id?.slice(0, 8)}…)`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      showToast(e.response?.data?.error || 'Could not reverse payroll run.', 'error');
+    } finally {
+      setReversingId(null);
+    }
+  };
   const queryClient = useQueryClient();
 
   const now = new Date();
@@ -449,7 +469,7 @@ export default function PayrollPage() {
                                 </>
                               )}
 
-                              {/* Paid — locked, expand only */}
+                              {/* Paid — show paid badge, resend payslips, reverse */}
                               {run.status === 'paid' && (
                                 <>
                                   <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
@@ -470,12 +490,31 @@ export default function PayrollPage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
+                                    onClick={() => handleReverse(run)}
+                                    disabled={reversingId === run.id}
+                                    title="Reverse this payroll run to create a corrective run"
+                                    className="rounded-xl h-10 w-10 p-0 text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                                  >
+                                    {reversingId === run.id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <RotateCcw className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
                                     onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                                     className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 text-teal-600"
                                   >
                                     {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                                   </Button>
                                 </>
+                              )}
+
+                              {/* Reversed — info only */}
+                              {run.status === 'reversed' && (
+                                <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+                                  <RotateCcw className="h-3.5 w-3.5" /> Reversed
+                                </span>
                               )}
                             </div>
                           </td>
