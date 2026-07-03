@@ -191,7 +191,14 @@ function RegisterPageInner() {
       console.log('Verification result:', result);
 
       if (result.status === 'complete') {
-        await setActive!({ session: result.createdSessionId });
+        await setActive!({
+          session: result.createdSessionId,
+          navigate: (to) => router.push(to),
+          taskUrls: {
+            signIn: '/auth/login',
+            signUp: '/auth/register',
+          },
+        });
         router.push('/');
       } else {
         const msg = `Signup status: "${result.status}". Missing requirements: ${JSON.stringify(result.missingFields)}`;
