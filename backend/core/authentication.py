@@ -65,7 +65,7 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                         "ClerkAuth: Refusing auto-provision — real Supabase DB detected "
                         "even though DEBUG=True. Configure the Clerk webhook instead.",
                     )
-                    return None
+                    raise exceptions.AuthenticationFailed("User not found, sign up first")
                 logger.info(
                     "ClerkAuth: Auto-provisioning user for clerk_id=%s in DEBUG mode",
                     clerk_id,
@@ -121,7 +121,7 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                         exc,
                         exc_info=True
                     )
-                    return None
+                    raise exceptions.AuthenticationFailed("User not found, sign up first")
             else:
                 # Token is valid but the webhook hasn't synced the user yet.
                 logger.warning(
@@ -129,7 +129,7 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                     "Ensure the Clerk webhook is configured and reachable.",
                     clerk_id[:8] + "...",   # log only a partial ID — never the full value
                 )
-                return None
+                raise exceptions.AuthenticationFailed("User not found, sign up first")
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

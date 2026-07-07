@@ -27,6 +27,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
       set({ isLoading: false, hasFetched: true });
+      throw err;
     }
   },
   clearUser: () => set({ user: null, isLoading: false, hasFetched: false }),

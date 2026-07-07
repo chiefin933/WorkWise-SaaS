@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth, useSignOut } from '@clerk/nextjs';
 import { useTheme } from 'next-themes';
 import Sidebar from './Sidebar';
 import { Search, Sun, Moon, Users, Loader2, X, AlertTriangle } from 'lucide-react';
@@ -12,6 +12,7 @@ import ProfileDropdown from './ProfileDropdown';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import Link from 'next/link';
+import { useToast } from './ui/toast';
 
 // ── Search types ──────────────────────────────────────────────────────────────
 interface SearchResult {
@@ -233,19 +234,33 @@ function GlobalSearch() {
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
+  const { signOut } = useSignOut();
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
+  const { toast, container: toastContainer } = useToast();
   useEffect(() => { setIsMounted(true); }, []);
   const { theme, setTheme } = useTheme();
   const isAuthPage = pathname.startsWith('/auth');
   const { user, hasFetched, isLoading, fetchUser } = useAuthStore();
 
   useEffect(() => {
-    if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
-      fetchUser();
-    }
-  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser]);
+    const doFetch = async () => {
+      if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
+        try {
+          await fetchUser();
+        } catch (err: any) {
+          // Check if error is user not found
+          const msg = err?.response?.data?.detail || err?.response?.data?.error || err?.message || '';
+          if (msg.includes('User not found')) {
+            toast('User not found, sign up first', 'error');
+            await signOut({ redirectUrl: '/auth/register' });
+          }
+        }
+      }
+    };
+    doFetch();
+  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser, signOut, toast, router]);
 
   // Compute days remaining on trial
   const trialDaysLeft = (() => {
@@ -331,6 +346,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+      {toastContainer}
     </div>
   );
 }
