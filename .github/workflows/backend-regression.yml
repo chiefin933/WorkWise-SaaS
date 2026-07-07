@@ -46,15 +46,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run --source='.' manage.py test \
-            core.tests \
-            core.tests_authentication \
-            core.test_jwks_integration \
-            core.tests_rbac_mpesa \
-            reports.tests \
-            payroll.tests_mpesa_b2c \
-            payroll.tests_mpesa \
-            tenants.tests
+          coverage run --source='.' manage.py test
           coverage report --show-missing
           coverage report --fail-under=50
 

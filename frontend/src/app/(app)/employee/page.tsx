@@ -7,7 +7,7 @@ import { useUser } from '@clerk/nextjs';
 import api from '@/lib/api';
 import Link from 'next/link';
 import {
-  Clock, Calendar, FileText, Receipt, ArrowRight,
+  Clock, CalendarCheck2, FileSpreadsheet, Receipt, ArrowRight,
   CheckCircle2, XCircle, AlertCircle, User,
 } from 'lucide-react';
 
@@ -46,8 +46,8 @@ export default function EmployeeDashboard() {
 
   const quickLinks = [
     { label: 'My Attendance',  href: '/attendance',           icon: Clock,     desc: 'Clock in/out and view your log' },
-    { label: 'Request Leave',  href: '/leave',                icon: Calendar,  desc: 'Apply for annual, sick or other leave' },
-    { label: 'My Payslips',    href: '/manager/self-service', icon: FileText,  desc: 'Download your monthly payslips' },
+    { label: 'Request Leave',  href: '/leave',                icon: CalendarCheck2, desc: 'Apply for annual, sick or other leave' },
+    { label: 'My Payslips',    href: '/manager/self-service', icon: FileSpreadsheet, desc: 'Download your monthly payslips' },
     { label: 'Expense Claims', href: '/finance/expenses',     icon: Receipt,   desc: 'Submit and track expense reimbursements' },
   ];
 

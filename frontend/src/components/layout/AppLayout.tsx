@@ -232,14 +232,20 @@ function GlobalSearch() {
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   const { theme, setTheme } = useTheme();
   const isAuthPage = pathname.startsWith('/auth');
-  const { user } = useAuthStore();
+  const { user, hasFetched, isLoading, fetchUser } = useAuthStore();
+
+  useEffect(() => {
+    if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
+      fetchUser();
+    }
+  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser]);
 
   // Compute days remaining on trial
   const trialDaysLeft = (() => {
@@ -253,18 +259,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isPublicPage = pathname === '/' || pathname.startsWith('/pricing');
 
   useEffect(() => {
-    if (!isAuthPage && !isPublicPage && isLoaded && !isSignedIn) {
+    if (!isAuthPage && !isPublicPage && clerkLoaded && !isSignedIn) {
       router.push('/auth/login');
     }
-  }, [isAuthPage, isPublicPage, isLoaded, isSignedIn, router]);
+  }, [isAuthPage, isPublicPage, clerkLoaded, isSignedIn, router]);
 
   if (isAuthPage || isPublicPage) {
     return <>{children}</>;
   }
 
-  if (!isLoaded) {
+  if (!clerkLoaded || !hasFetched || isLoading) {
     return (
-      <div className="flex h-screen bg-[#F8FAFC] items-center justify-center">
+      <div className="flex h-screen bg-[#F8FAFC] dark:bg-slate-950 items-center justify-center">
         <div className="h-10 w-10 border-4 border-teal-500/20 border-t-teal-600 rounded-full animate-spin" />
       </div>
     );

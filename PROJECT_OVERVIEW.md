@@ -119,7 +119,19 @@ WorkWise has four roles. Every new registration creates a company **Admin**. All
 ### `tenants` — Multi-Tenancy Core
 - **`Tenant`**: UUID PK, `name`, `country`, `currency`, `plan` (STARTER/GROWTH/BUSINESS/ENTERPRISE), `subscription_status`, `max_employees` (auto-capped by plan: 15/75/300/∞), `trial_ends_at`
 - **`MpesaSubscriptionPayment`**: STK Push payment tracking for plan upgrades
+- **`TenantSettings`**: Company customization (logo, brand colors, payslip templates, working days, time zone, public holidays)
 - On tenant creation: `PayrollConfig` is auto-created + standard **Chart of Accounts** is seeded (50 accounts)
+
+### `workflows` — Approval Workflows
+- **`ApprovalTemplate`**: Configurable templates for leave, salary changes, onboarding, etc.
+- **`ApprovalStep`**: Individual steps in an approval template (approver type/role/user, comment required)
+- **`ApprovalRequest`**: Actual approval request linked to an item
+- **`ApprovalAction`**: Action taken on a request (approve/reject/delegate with comment)
+
+### `documents` — Document Management
+- **`DocumentCategory`**: Organize documents (e.g., ID, contracts, certificates)
+- **`Document`**: Uploaded document (file, type, employee link, permissions, expiry date, version number)
+- **`DocumentVersion`**: Version history for documents
 
 ### `users` — Authentication & Team Management
 - **`User`**: UUID PK, email login, `role` (ADMIN/HR/FINANCE/EMPLOYEE), `clerk_id`, `tenant`, `invite_token`, `notification_preferences`
@@ -150,6 +162,23 @@ WorkWise has four roles. Every new registration creates a company **Admin**. All
 
 ### `core` — Shared Infrastructure
 - `AuditLog` (append-only with HMAC seals), `ClerkAuthentication`, `TenantMiddleware`, `RequestIDMiddleware`, `EncryptedCharField/JSONField`, permission classes, pagination, JSON logging
+
+### `reports_engine` — Custom Report Builder & Exports
+- **`CustomReport`**: Saved custom reports (type, filters, columns, tenant)
+- **`ReportExport`**: History of report exports (format, status, file)
+- Supports CSV, Excel (XLSX), and PDF exports via `export_utils.py`
+- Endpoints for creating, listing, and exporting custom reports
+
+### `integrations` — API Keys & Webhooks
+- **`APIKey`**: Tenant-scoped API keys with permissions, expiry, secret
+- **`Webhook`**: Configurable webhooks with trigger events, secret for signature verification
+- **`WebhookLog`**: History of webhook deliveries (status, status code, response)
+- Webhook trigger test endpoint, HMAC signature generation
+
+### `backup` — Tenant Backup & Disaster Recovery
+- **`TenantBackup`**: Tenant backup (name, description, file, status, created by)
+- Exports all tenant data to JSON (employees, attendance, leave, payroll, settings, etc.)
+- Download endpoint for retrieving backup files
 
 ---
 
@@ -293,6 +322,28 @@ All endpoints prefixed `/api/` and require Clerk Bearer JWT unless noted.
 | GET | `/api/finance/balance-sheet/` | Balance sheet |
 | GET | `/api/finance/general-ledger/` | General ledger |
 
+### Workflows (Approval)
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/api/workflows/templates/` | List/Create approval templates |
+| GET/PATCH/DELETE | `/api/workflows/templates/<id>/` | Approval template detail |
+| GET/POST | `/api/workflows/steps/` | List/Create approval steps |
+| GET/PATCH/DELETE | `/api/workflows/steps/<id>/` | Approval step detail |
+| GET/POST | `/api/workflows/requests/` | List/Create approval requests |
+| GET/PATCH | `/api/workflows/requests/<id>/` | Approval request detail |
+| POST | `/api/workflows/requests/<id>/cancel/` | Cancel approval request |
+| GET/POST | `/api/workflows/actions/` | List/Create approval actions |
+
+### Documents
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/api/documents/categories/` | List/Create document categories |
+| GET/PATCH/DELETE | `/api/documents/categories/<id>/` | Document category detail |
+| GET/POST | `/api/documents/documents/` | List/Create documents |
+| GET/PATCH/DELETE | `/api/documents/documents/<id>/` | Document detail |
+| GET | `/api/documents/versions/` | List document versions |
+| GET | `/api/documents/versions/<id>/` | Document version detail |
+
 ### Reports & Settings
 | Method | Path | Description |
 |---|---|---|
@@ -305,8 +356,34 @@ All endpoints prefixed `/api/` and require Clerk Bearer JWT unless noted.
 | GET | `/api/audit-trail/` | Audit log (ADMIN only) |
 | GET/PATCH | `/api/settings/company/` | Company settings |
 | POST | `/api/settings/company/upgrade-plan/` | Upgrade plan via M-Pesa |
+| GET/PATCH | `/api/settings/company/customization/` | Company customization (logo, colors, etc.) |
 | GET/PATCH | `/api/settings/payroll/` | Payroll statutory config |
 | GET/PATCH | `/api/settings/notifications/` | User notification preferences |
+
+### Reports Engine (Custom Reports)
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/api/reports-engine/custom-reports/` | List/Create custom reports |
+| GET/PATCH/DELETE | `/api/reports-engine/custom-reports/<id>/` | Custom report detail |
+| POST | `/api/reports-engine/custom-reports/<id>/export/` | Export custom report (CSV/XLSX/PDF) |
+| GET | `/api/reports-engine/exports/` | List report exports |
+
+### Integrations (API Keys & Webhooks)
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/api/integrations/api-keys/` | List/Create API keys |
+| GET/PATCH/DELETE | `/api/integrations/api-keys/<id>/` | API key detail |
+| GET/POST | `/api/integrations/webhooks/` | List/Create webhooks |
+| GET/PATCH/DELETE | `/api/integrations/webhooks/<id>/` | Webhook detail |
+| POST | `/api/integrations/webhooks/<id>/trigger_test/` | Trigger test webhook |
+| GET | `/api/integrations/webhook-logs/` | List webhook delivery logs |
+
+### Backup & Disaster Recovery
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/api/backup/backups/` | List/Create tenant backups |
+| GET | `/api/backup/backups/<id>/` | Backup detail |
+| GET | `/api/backup/backups/<id>/download/` | Download backup file |
 
 ---
 
@@ -646,6 +723,7 @@ WorkWise SaaS/
 │   │   └── statutory/           # NSSF / SHIF / PAYE / AHL calculation modules
 │   ├── payslips/                # PDF generation + S3 pre-signed download
 │   ├── reports/                 # CSV exports: P9, P10, NSSF, SHIF, payroll, attendance
+│   ├── reports_engine/          # Custom report builder, exports (CSV/XLSX/PDF)
 │   ├── finance/                 # Complete Finance module:
 │   │   ├── models.py            #   ExpenseClaim, DepartmentBudget, PettyCashFund, PettyCashTransaction
 │   │   ├── books_models.py      #   ChartOfAccount, JournalEntry, JournalLine
@@ -656,6 +734,10 @@ WorkWise SaaS/
 │   │   ├── books_views.py       #   COA, journal entries, trial balance, P&L, balance sheet, ledger
 │   │   ├── serializers.py       #   Operational finance serializers
 │   │   └── books_serializers.py #   Books serializers with balance validation
+│   ├── workflows/               # Approval workflows (templates, steps, requests, actions)
+│   ├── documents/               # Document management (categories, docs, versions)
+│   ├── integrations/            # API keys, webhooks, webhook logs
+│   ├── backup/                  # Tenant backup & disaster recovery
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── .env.example

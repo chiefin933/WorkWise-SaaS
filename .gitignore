@@ -49,3 +49,6 @@ htmlcov/
 Thumbs.db
 *.swp
 *.swo
+
+# AutoClaw KDream data
+.autoclaw/

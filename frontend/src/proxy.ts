@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   // Marketing
   '/',
   '/pricing(.*)',
+  '/help(.*)',
 
   // Auth flows
   '/auth/login(.*)',

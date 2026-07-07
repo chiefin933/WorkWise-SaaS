@@ -6,24 +6,24 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { useAuthStore } from '@/lib/store';
 import { 
-  LayoutDashboard, 
+  Home, 
   Users, 
   Clock, 
-  Calendar, 
+  CalendarCheck2, 
   DollarSign, 
-  FileText, 
+  FileSpreadsheet, 
   Settings, 
   LogOut,
   ChevronRight,
   ChevronLeft,
-  Briefcase,
-  Shield,
+  Building2,
+  ShieldCheck,
   CreditCard,
   UserCircle,
   Receipt,
   PiggyBank,
-  Banknote,
-  BookOpen,
+  Wallet,
+  BookOpenCheck,
   BarChart3,
 } from 'lucide-react';
 
@@ -42,18 +42,18 @@ export default function Sidebar() {
   const navItems = [
     // ── CEO / Admin only ────────────────────────────────────────────────────
     ...(isCEO
-      ? [{ name: 'CEO Dashboard', href: '/dashboard', icon: LayoutDashboard }]
+      ? [{ name: 'CEO Dashboard', href: '/dashboard', icon: Home }]
       : []),
 
     // ── HR section ──────────────────────────────────────────────────────────
     ...(canManagePeople
       ? [
-          { name: 'HR Dashboard',  href: '/hr',        icon: Briefcase },
+          { name: 'HR Dashboard',  href: '/hr',        icon: Building2 },
           { name: 'Employees',     href: '/employees', icon: Users },
           { name: 'Attendance',    href: '/attendance', icon: Clock },
-          { name: 'Leave',         href: '/leave',     icon: Calendar },
+          { name: 'Leave',         href: '/leave',     icon: CalendarCheck2 },
           { name: 'Payroll',       href: '/payroll',   icon: DollarSign },
-          { name: 'HR Reports',    href: '/reports',   icon: FileText },
+          { name: 'HR Reports',    href: '/reports',   icon: FileSpreadsheet },
         ]
       : []),
 
@@ -63,9 +63,9 @@ export default function Sidebar() {
           { name: 'Finance',         href: '/finance',                   icon: DollarSign },
           { name: 'Expenses',        href: '/finance/expenses',          icon: Receipt },
           { name: 'Budgets',         href: '/finance/budgets',           icon: PiggyBank },
-          { name: 'Petty Cash',      href: '/finance/petty-cash',        icon: Banknote },
-          { name: 'Accounts',        href: '/finance/books/accounts',    icon: BookOpen },
-          { name: 'Journal',         href: '/finance/books/journal',     icon: FileText },
+          { name: 'Petty Cash',      href: '/finance/petty-cash',        icon: Wallet },
+          { name: 'Accounts',        href: '/finance/books/accounts',    icon: BookOpenCheck },
+          { name: 'Journal',         href: '/finance/books/journal',     icon: FileSpreadsheet },
           { name: 'Finance Reports', href: '/finance/books/reports',     icon: BarChart3 },
         ]
       : []),
@@ -73,10 +73,10 @@ export default function Sidebar() {
     // ── Employee self-service ────────────────────────────────────────────────
     ...(role === 'EMPLOYEE'
       ? [
-          { name: 'My Dashboard',   href: '/employee',                 icon: LayoutDashboard },
+          { name: 'My Dashboard',   href: '/employee',                 icon: Home },
           { name: 'My Attendance',  href: '/attendance',               icon: Clock },
-          { name: 'My Leave',       href: '/leave',                    icon: Calendar },
-          { name: 'My Payslips',    href: '/manager/self-service',     icon: FileText },
+          { name: 'My Leave',       href: '/leave',                    icon: CalendarCheck2 },
+          { name: 'My Payslips',    href: '/manager/self-service',     icon: FileSpreadsheet },
           { name: 'My Expenses',    href: '/finance/expenses',         icon: Receipt },
         ]
       : []),
@@ -84,7 +84,7 @@ export default function Sidebar() {
     // ── Admin-only ───────────────────────────────────────────────────────────
     ...(isCEO
       ? [
-          { name: 'Audit Trail', href: '/audit',           icon: Shield },
+          { name: 'Audit Trail', href: '/audit',           icon: ShieldCheck },
           { name: 'Billing',     href: '/settings/billing', icon: CreditCard },
         ]
       : []),

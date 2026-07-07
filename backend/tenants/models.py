@@ -85,3 +85,33 @@ class MpesaSubscriptionPayment(models.Model):
 
     def __str__(self):
         return f"{self.tenant.name} - {self.plan} ({self.status})"
+
+
+class TenantSettings(models.Model):
+    """Company customization settings for a tenant"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='settings')
+    # Branding
+    logo = models.ImageField(upload_to='tenant_logos/', null=True, blank=True)
+    primary_color = models.CharField(max_length=7, default='#0ea5e9', help_text='Primary brand color (hex)')
+    secondary_color = models.CharField(max_length=7, default='#0284c7', help_text='Secondary brand color (hex)')
+    # Payslip template
+    payslip_header_text = models.CharField(max_length=255, blank=True, default='')
+    payslip_footer_text = models.CharField(max_length=255, blank=True, default='')
+    # Leave policies (already covered in leave.models.LeavePolicy)
+    # Working days
+    working_days = models.JSONField(default=list, help_text='List of working days (0=Monday, 6=Sunday)')
+    weekend_days = models.JSONField(default=list, help_text='List of weekend days (0=Monday, 6=Sunday)')
+    # Time zone
+    time_zone = models.CharField(max_length=100, default='Africa/Nairobi')
+    # Language
+    language = models.CharField(max_length=10, default='en')
+    # Public holidays (JSON list of dates)
+    public_holidays = models.JSONField(default=list, help_text='List of public holiday dates (YYYY-MM-DD)')
+    # Created/Updated
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Settings for {self.tenant.name}"
+

@@ -7,18 +7,44 @@ from core.tenant_models import TenantScopedModel
 
 class PayrollRun(TenantScopedModel):
     STATUS_CHOICES = [
-        ('draft',     'Draft'),
-        ('processed', 'Processed'),
-        ('approved',  'Approved'),
-        ('paid',      'Paid'),
-        ('reversed',  'Reversed'),
+        ('draft',        'Draft'),
+        ('validating',   'Validating'),        # Automated checks in progress
+        ('validation_failed', 'Validation Failed'),  # Has errors — cannot process
+        ('processed',    'Processed'),         # Calculations done
+        ('awaiting_approval', 'Awaiting Approval'),  # Submitted for sign-off
+        ('approved',     'Approved'),          # Finance/Admin signed off
+        ('payment_processing', 'Payment Processing'),  # M-Pesa/bank in progress
+        ('paid',         'Paid'),              # All disbursements complete
+        ('locked',       'Locked'),            # Immutable — archived
+        ('reversed',     'Reversed'),          # Corrective run created
     ]
 
     id       = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant   = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payroll_runs')
     month    = models.IntegerField()
     year     = models.IntegerField()
-    status   = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    status   = models.CharField(max_length=25, choices=STATUS_CHOICES, default='draft')
+
+    # Notes/comments from whoever approved or rejected
+    approval_note = models.TextField(blank=True, default='')
+
+    # Who approved this run
+    approved_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approved_payroll_runs',
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    # Who locked this run (makes it immutable)
+    locked_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='locked_payroll_runs',
+    )
+    locked_at = models.DateTimeField(null=True, blank=True)
+
+    # Validation errors stored as JSON list of {field, message}
+    validation_errors = models.JSONField(default=list, blank=True)
+
     reversed_by = models.OneToOneField(
         'self', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='reversal_of',
@@ -29,10 +55,6 @@ class PayrollRun(TenantScopedModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Removed unique_together — a month can have multiple runs when the original
-        # is reversed and a corrective run is created for the same period.
-        # Uniqueness is enforced at the application level: only one non-reversed
-        # run is allowed per (tenant, month, year) at a time.
         indexes = [
             models.Index(fields=['tenant', 'status'], name='pr_tenant_status_idx'),
             models.Index(fields=['tenant', 'year', 'month'], name='pr_tenant_period_idx'),
@@ -40,6 +62,15 @@ class PayrollRun(TenantScopedModel):
 
     def __str__(self):
         return f"{self.tenant.name} - {self.month}/{self.year} ({self.status})"
+
+    @property
+    def is_editable(self) -> bool:
+        """Only draft and validation_failed runs can be edited."""
+        return self.status in ('draft', 'validation_failed')
+
+    @property
+    def is_locked(self) -> bool:
+        return self.status in ('locked', 'reversed')
 
 # PayrollItem is tenant-scoped via payroll_run -> PayrollRun -> tenant FK chain. No direct tenant FK needed.
 class PayrollItem(models.Model):

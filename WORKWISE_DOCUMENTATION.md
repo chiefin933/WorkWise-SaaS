@@ -4,6 +4,9 @@
 > It manages the full employee lifecycle and the complete finance department workflow —
 > from onboarding to payroll, from expense claims to double-entry bookkeeping —
 > secured behind Clerk authentication and AES-256-GCM field-level encryption.
+> 
+> **Excel-Killer Vision**: We displace spreadsheets by providing error-proof statutory
+> compliance, immutable audit trails, and structural efficiency that Excel cannot match.
 
 **Current Status: Production-Ready**
 All coding work is complete. The only remaining steps require external credentials
@@ -40,6 +43,15 @@ All coding work is complete. The only remaining steps require external credentia
 ## What's Complete
 
 Every feature listed below is built, tested locally, and pushed to GitHub.
+
+### Excel-Killer Value Proposition
+WorkWise displaces spreadsheets with:
+- ✅ **Statutory Compliance as a Service: Error-proof PAYE/NSSF/SHIF/AHL calculations that protect you from KRA fines — impossible to replicate reliably in Excel
+- ✅ **Immutable Audit Trails: HMAC-SHA256-sealed audit logs — no silent changes possible
+- ✅ **Structural Efficiency: Replace spreadsheet chaos (versioning, formula errors) with controlled role-based workflows
+- ✅ **Bank & M-Pesa Ready: Bulk bank exports (Equity/KCB/Co-op/Stanbic) and M-Pesa B2C disbursement
+- ✅ **Attendance-to-Payroll Loop: GPS-verified attendance → payroll in one click
+- ✅ **Leave Balance Tracking: Automatic, no spreadsheet errors
 
 ### HR
 - ✅ Multi-tenant employee management with all Kenya statutory fields (KRA PIN, National ID, NSSF, SHIF numbers, county, nationality, work permit)
@@ -92,6 +104,7 @@ Every feature listed below is built, tested locally, and pushed to GitHub.
 - ✅ Append-only audit log with HMAC-SHA256 integrity seals
 - ✅ Clerk JWT/RS256 with JWKS caching
 - ✅ Rate limiting (anon 30/min, auth 120/min, login 10/min)
+- ✅ **django-axes brute-force protection**: login failure tracking & IP lockout
 - ✅ HTTP security headers (CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy)
 - ✅ `MASTER_ENCRYPTION_KEY` required at startup (app refuses to start without it)
 - ✅ CI/CD: GitHub Actions (pytest + Bandit + npm audit)

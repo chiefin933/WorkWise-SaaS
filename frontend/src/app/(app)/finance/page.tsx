@@ -9,9 +9,9 @@ import { financeApi } from '@/lib/api';
 import type { FinancialSummary } from '@/lib/types';
 import Link from 'next/link';
 import {
-  DollarSign, Receipt, PiggyBank, Banknote, TrendingUp,
+  DollarSign, Receipt, PiggyBank, Wallet, TrendingUp,
   TrendingDown, AlertCircle, CheckCircle2, ArrowRight,
-  ChevronLeft, ChevronRight, BookOpen, FileText,
+  ChevronLeft, ChevronRight, BookOpenCheck, FileSpreadsheet,
 } from 'lucide-react';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -77,7 +77,7 @@ export default function FinanceDashboard() {
     {
       label: 'Petty Cash Balance',
       value: summary ? `KES ${summary.petty_balance.toLocaleString()}` : '—',
-      icon: Banknote, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20',
+      icon: Wallet, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20',
       href: '/finance/petty-cash',
     },
   ];
@@ -221,9 +221,9 @@ export default function FinanceDashboard() {
         {[
           { label: 'Review Expenses',   href: '/finance/expenses?status=pending', icon: Receipt,    desc: `${summary?.pending_count ?? 0} claims awaiting review` },
           { label: 'Set Budgets',       href: '/finance/budgets',                 icon: PiggyBank,  desc: 'Allocate monthly department budgets' },
-          { label: 'Petty Cash',        href: '/finance/petty-cash',              icon: Banknote,   desc: `Balance: KES ${(summary?.petty_balance ?? 0).toLocaleString()}` },
-          { label: 'Chart of Accounts', href: '/finance/books/accounts',          icon: BookOpen,   desc: 'Manage your account structure' },
-          { label: 'Journal Entries',   href: '/finance/books/journal',           icon: FileText,   desc: 'Record double-entry transactions' },
+          { label: 'Petty Cash',        href: '/finance/petty-cash',              icon: Wallet,     desc: `Balance: KES ${(summary?.petty_balance ?? 0).toLocaleString()}` },
+          { label: 'Chart of Accounts', href: '/finance/books/accounts',          icon: BookOpenCheck, desc: 'Manage your account structure' },
+          { label: 'Journal Entries',   href: '/finance/books/journal',           icon: FileSpreadsheet, desc: 'Record double-entry transactions' },
           { label: 'Financial Reports', href: '/finance/books/reports',           icon: TrendingUp, desc: 'P&L, Balance Sheet, Trial Balance' },
         ].map(action => (
           <Link key={action.label} href={action.href}>

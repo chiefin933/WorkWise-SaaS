@@ -173,24 +173,46 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
 
         return Response({"message": f"Successfully processed payroll for {len(processed_items)} employees"})
 
+    # ── Submit for Approval ────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'], url_path='submit-approval')
+    def submit_for_approval(self, request, pk=None):
+        """Advance a processed run to 'awaiting_approval'."""
+        from core.rbac import has_permission
+        payroll_run = self.get_object()
+        if payroll_run.status != 'processed':
+            return Response(
+                {'error': 'Only processed payroll runs can be submitted for approval.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payroll_run.status = 'awaiting_approval'
+        payroll_run.save(update_fields=['status', 'updated_at'])
+        logger.info("Payroll run %s submitted for approval by %s", payroll_run.id, request.user.email)
+        return Response({'message': 'Payroll run submitted for approval.', 'status': 'awaiting_approval'})
+
     # ── Approve ───────────────────────────────────────────────────────────────
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Advance a processed payroll run to 'approved' status."""
+        """Approve a processed or awaiting-approval payroll run."""
+        from core.rbac import has_permission
+        if not has_permission(request.user, 'payroll.approve'):
+            return Response({'error': 'You do not have permission to approve payroll runs.'},
+                            status=status.HTTP_403_FORBIDDEN)
         payroll_run = self.get_object()
-        if payroll_run.status != 'processed':
+        if payroll_run.status not in ('processed', 'awaiting_approval'):
             return Response(
-                {"error": "Only processed payroll runs can be approved."},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Only processed or awaiting-approval payroll runs can be approved.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
+        from django.utils import timezone as tz
         payroll_run.status = 'approved'
-        payroll_run.save(update_fields=['status', 'updated_at'])
-        logger.info(
-            "Payroll run %s approved by user %s",
-            payroll_run.id, request.user.email
-        )
-        return Response({"message": "Payroll run approved successfully.", "status": "approved"})
+        payroll_run.approved_by = request.user
+        payroll_run.approved_at = tz.now()
+        payroll_run.approval_note = request.data.get('note', '')
+        payroll_run.save(update_fields=['status', 'approved_by', 'approved_at', 'approval_note', 'updated_at'])
+        logger.info("Payroll run %s approved by user %s", payroll_run.id, request.user.email)
+        return Response({'message': 'Payroll run approved successfully.', 'status': 'approved'})
 
     # ── Reverse ───────────────────────────────────────────────────────────────
 
@@ -210,7 +232,7 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
 
         if payroll_run.status not in ('approved', 'paid'):
             return Response(
-                {'error': 'Only approved or paid payroll runs can be reversed.'},
+                {'error': 'Only approved or paid payroll runs can be reversed. Locked runs cannot be reversed.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -279,6 +301,37 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
             'original_status':   'reversed',
             'corrective_run_id': str(corrective_run.id),
             'corrective_status': 'draft',
+        })
+
+    # ── Lock (immutable archive) ──────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'])
+    def lock(self, request, pk=None):
+        """
+        Lock a paid payroll run permanently.
+        Once locked, no further edits, reversals, or re-processing are possible.
+        This is the final state — use it after all disbursements are confirmed.
+        Requires payroll.lock permission.
+        """
+        from core.rbac import has_permission
+        from django.utils import timezone as tz
+        if not has_permission(request.user, 'payroll.lock'):
+            return Response({'error': 'You do not have permission to lock payroll runs.'},
+                            status=status.HTTP_403_FORBIDDEN)
+        payroll_run = self.get_object()
+        if payroll_run.status != 'paid':
+            return Response(
+                {'error': 'Only paid payroll runs can be locked.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payroll_run.status = 'locked'
+        payroll_run.locked_by = request.user
+        payroll_run.locked_at = tz.now()
+        payroll_run.save(update_fields=['status', 'locked_by', 'locked_at', 'updated_at'])
+        logger.info("Payroll run %s locked by %s", payroll_run.id, request.user.email)
+        return Response({
+            'message': f'Payroll run for {payroll_run.month}/{payroll_run.year} is now locked and archived.',
+            'status': 'locked',
         })
 
     # ── Mark Paid ─────────────────────────────────────────────────────────────

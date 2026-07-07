@@ -10,8 +10,8 @@ from rest_framework import status
 from core.tenant_utils import tenant_required
 from core.permissions import IsAdmin
 from payroll.models import PayrollConfig
-from .models import Tenant, MpesaSubscriptionPayment
-from .serializers import TenantSerializer, PayrollConfigSerializer
+from .models import Tenant, MpesaSubscriptionPayment, TenantSettings
+from .serializers import TenantSerializer, PayrollConfigSerializer, TenantSettingsSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,32 @@ class PayrollConfigView(APIView):
             return err
         config, _ = PayrollConfig.objects.get_or_create(tenant=tenant)
         serializer = PayrollConfigSerializer(config, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class TenantSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        tenant, err = tenant_required(request)
+        if err:
+            return err
+        settings, _ = TenantSettings.objects.get_or_create(tenant=tenant)
+        return Response(TenantSettingsSerializer(settings).data)
+
+    def patch(self, request):
+        if not IsAdmin().has_permission(request, self):
+            return Response(
+                {"error": "Only administrators can change company settings."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        tenant, err = tenant_required(request)
+        if err:
+            return err
+        settings, _ = TenantSettings.objects.get_or_create(tenant=tenant)
+        serializer = TenantSettingsSerializer(settings, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)

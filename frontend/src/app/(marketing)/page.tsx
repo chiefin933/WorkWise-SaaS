@@ -146,6 +146,7 @@ export default function LandingPage() {
               <a href="#features" className="hover:text-white transition-colors">Features</a>
               <a href="#roles" className="hover:text-white transition-colors">Who It's For</a>
               <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+              <Link href="/help" className="hover:text-white transition-colors">Help Center</Link>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/auth/login" className="text-sm font-semibold text-slate-300 hover:text-white transition-colors px-4 py-2">
@@ -396,6 +397,7 @@ export default function LandingPage() {
             </div>
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-600">
               <Link href="/pricing" className="hover:text-slate-400 transition-colors">Pricing</Link>
+              <Link href="/help" className="hover:text-slate-400 transition-colors">Help Center</Link>
               <Link href="/auth/login" className="hover:text-slate-400 transition-colors">Log In</Link>
               <Link href="/auth/register" className="hover:text-slate-400 transition-colors">Sign Up</Link>
               <a href="mailto:enterprise@workwise.co.ke" className="hover:text-slate-400 transition-colors">Enterprise</a>

@@ -8,8 +8,8 @@ import api from '@/lib/api';
 import type { DashboardStats } from '@/lib/types';
 import Link from 'next/link';
 import {
-  Users, Clock, Calendar, DollarSign, TrendingUp,
-  CheckCircle2, AlertCircle, FileText, ArrowRight,
+  Users, Clock, CalendarCheck2, DollarSign, TrendingUp,
+  CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight,
 } from 'lucide-react';
 
 export default function HRDashboard() {
@@ -40,7 +40,7 @@ export default function HRDashboard() {
     {
       label: 'Pending Leave Requests',
       value: stats?.pending_leaves ?? '—',
-      icon: Calendar,
+      icon: CalendarCheck2,
       color: 'text-amber-600',
       bg: 'bg-amber-50 dark:bg-amber-900/20',
       href: '/leave',
@@ -68,8 +68,8 @@ export default function HRDashboard() {
   const quickActions = [
     { label: 'Add Employee',    href: '/employees',  icon: Users },
     { label: 'Run Payroll',     href: '/payroll',    icon: DollarSign },
-    { label: 'Review Leave',    href: '/leave',      icon: Calendar },
-    { label: 'View Reports',    href: '/reports',    icon: FileText },
+    { label: 'Review Leave',    href: '/leave',      icon: CalendarCheck2 },
+    { label: 'View Reports',    href: '/reports',    icon: FileSpreadsheet },
     { label: 'Mark Attendance', href: '/attendance', icon: Clock },
   ];
 

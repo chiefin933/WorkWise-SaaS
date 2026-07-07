@@ -9,10 +9,10 @@ import type { DashboardStats, FinancialSummary } from '@/lib/types';
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
-  Users, DollarSign, Clock, Calendar, TrendingUp,
+  Users, DollarSign, Clock, CalendarCheck2, TrendingUp,
   ShieldCheck, ArrowRight, AlertTriangle, CheckCircle2,
-  Building, Receipt, PiggyBank, BarChart3, Bell,
-  FileText, Banknote, UserCheck, XCircle, ChevronRight,
+  Building2, Receipt, PiggyBank, BarChart3, Bell,
+  FileText, Wallet, UserCheck, XCircle, ChevronRight,
 } from 'lucide-react';
 
 export default function CEODashboard() {
@@ -153,7 +153,7 @@ export default function CEODashboard() {
             <Link href="/leave" className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                  <Calendar className="h-4 w-4 text-amber-600" />
+                  <CalendarCheck2 className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">Leave Requests</p>
@@ -187,7 +187,7 @@ export default function CEODashboard() {
             <Link href="/payroll" className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center">
-                  <Banknote className="h-4 w-4 text-teal-600" />
+                  <Wallet className="h-4 w-4 text-teal-600" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">Latest Payroll</p>
@@ -274,7 +274,7 @@ export default function CEODashboard() {
             <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />)}</div>
           ) : (hrStats?.department_costs?.length ?? 0) === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-              <Building className="h-10 w-10 mb-3 opacity-30" />
+              <Building2 className="h-10 w-10 mb-3 opacity-30" />
               <p className="text-sm">No department data yet.</p>
             </div>
           ) : (
@@ -321,8 +321,8 @@ export default function CEODashboard() {
                   system:   'bg-slate-100 text-slate-600 dark:bg-slate-800',
                 };
                 const typeIcons: Record<string, React.ReactNode> = {
-                  payroll:  <Banknote className="h-4 w-4" />,
-                  leave:    <Calendar className="h-4 w-4" />,
+                  payroll:  <Wallet className="h-4 w-4" />,
+                  leave:    <CalendarCheck2 className="h-4 w-4" />,
                   employee: <UserCheck className="h-4 w-4" />,
                   system:   <Bell className="h-4 w-4" />,
                 };
@@ -351,8 +351,8 @@ export default function CEODashboard() {
           {[
             { label: 'Employees',   href: '/employees',           icon: Users,       color: 'text-teal-600',    bg: 'bg-teal-50 dark:bg-teal-900/20' },
             { label: 'Attendance',  href: '/attendance',          icon: Clock,       color: 'text-cyan-600',    bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
-            { label: 'Leave',       href: '/leave',               icon: Calendar,    color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20' },
-            { label: 'Payroll',     href: '/payroll',             icon: Banknote,    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+            { label: 'Leave',       href: '/leave',               icon: CalendarCheck2, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+            { label: 'Payroll',     href: '/payroll',             icon: Wallet,    color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
             { label: 'Expenses',    href: '/finance/expenses',    icon: Receipt,     color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
             { label: 'Budgets',     href: '/finance/budgets',     icon: PiggyBank,   color: 'text-purple-600',  bg: 'bg-purple-50 dark:bg-purple-900/20' },
             { label: 'Reports',     href: '/reports',             icon: BarChart3,   color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20' },

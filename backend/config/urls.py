@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework import routers
 from users.views import InviteUserView, RevokeInviteView, RemoveTeamMemberView, TeamMembersView, UserProfileView, NotificationSettingsView, InviteInfoView, NotificationViewSet
 from core.views import DashboardStatsView, AuditTrailView
-from tenants.views import CompanySettingsView, PayrollConfigView, UpgradePlanView, MpesaExpressPushView, MpesaExpressCallbackView, MpesaExpressStatusView
+from tenants.views import CompanySettingsView, PayrollConfigView, UpgradePlanView, MpesaExpressPushView, MpesaExpressCallbackView, MpesaExpressStatusView, TenantSettingsView
 from employees.views import EmployeeViewSet
 from payroll.views import PayrollRunViewSet, StatutoryExportView
 from payroll.mpesa_views import B2CCallbackView, MpesaB2CResultView, MpesaB2CTimeoutView
@@ -44,6 +44,7 @@ urlpatterns = [
     path('api/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard_stats'),
     path('api/settings/company/', CompanySettingsView.as_view(), name='company_settings'),
     path('api/settings/company/upgrade-plan/', UpgradePlanView.as_view(), name='upgrade_plan'),
+    path('api/settings/company/customization/', TenantSettingsView.as_view(), name='company_customization_settings'),
     path('api/settings/payroll/', PayrollConfigView.as_view(), name='payroll_settings'),
     path('api/settings/notifications/', NotificationSettingsView.as_view(), name='notification_settings'),
     path('api/leave/policy/', LeavePolicyView.as_view(), name='leave_policy'),
@@ -57,6 +58,11 @@ urlpatterns = [
     path('api/mpesa/stk-push-callback/', MpesaExpressCallbackView.as_view(), name='stk_callback'),
     path('api/mpesa/stk-push/status/', MpesaExpressStatusView.as_view(), name='stk_status'),
     path('api/finance/', include('finance.urls')),
+    path('api/workflows/', include('workflows.urls')),
+    path('api/documents/', include('documents.urls')),
+    path('api/reports-engine/', include('reports_engine.urls')),
+    path('api/integrations/', include('integrations.urls')),
+    path('api/backup/', include('backup.urls')),
     path('api/audit-trail/', AuditTrailView.as_view(), name='audit-trail'),
     path('api/payroll/<uuid:payroll_run_id>/export/<str:export_type>/', StatutoryExportView.as_view(), name='statutory-export'),
     path('api/', include(router.urls)),

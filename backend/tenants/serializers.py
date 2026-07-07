@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Tenant
+from .models import Tenant, TenantSettings
 from payroll.models import PayrollConfig
 
 
@@ -21,3 +21,10 @@ class PayrollConfigSerializer(serializers.ModelSerializer):
             'nssf_rate', 'nssf_cap', 'shif_rate', 'shif_min',
             'ahl_rate', 'personal_relief', 'paye_bands',
         )
+
+
+class TenantSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenantSettings
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at')

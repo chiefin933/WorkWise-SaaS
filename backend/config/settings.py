@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'django_celery_results',
+    'axes',
     'core',
     'tenants',
     'users',
@@ -55,6 +56,11 @@ INSTALLED_APPS = [
     'reports',
     'django_daraja',
     'finance',
+    'workflows',
+    'documents',
+    'reports_engine',
+    'integrations',
+    'backup',
 ]
 
 MIDDLEWARE = [
@@ -66,6 +72,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'axes.middleware.AxesMiddleware',
     'core.middleware.TenantMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -217,6 +224,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 AUTH_USER_MODEL = 'users.User'
 
+AUTHENTICATION_BACKENDS = [
+    # AxesStandaloneBackend should be first.
+    'axes.backends.AxesStandaloneBackend',
+    # Django ModelBackend is the default authentication backend.
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # ── Cookie Security ──────────────────────────────────────────────────────────
 # In production (DEBUG=False) cookies are secure-only and HTTP-only.
 SESSION_COOKIE_SECURE = not DEBUG
@@ -355,6 +369,39 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'django_celery_results.schedulers:DatabaseScheduler'
+
+# ── Celery Beat — Periodic Task Schedule ─────────────────────────────────────
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Daily at 09:00 EAT (UTC+3 = 06:00 UTC)
+    'check-absent-employees': {
+        'task':     'core.check_absent_employees',
+        'schedule': crontab(hour=6, minute=0),
+    },
+    'send-birthday-reminders': {
+        'task':     'core.send_birthday_reminders',
+        'schedule': crontab(hour=6, minute=15),
+    },
+    'check-probation-endings': {
+        'task':     'core.check_probation_endings',
+        'schedule': crontab(hour=6, minute=30),
+    },
+    'check-contract-expiry': {
+        'task':     'core.check_contract_expiry',
+        'schedule': crontab(hour=6, minute=45),
+    },
+    # 25th of every month at 08:00 EAT (05:00 UTC)
+    'send-payroll-reminders': {
+        'task':     'core.send_payroll_reminders',
+        'schedule': crontab(hour=5, minute=0, day_of_month=25),
+    },
+    # 1 January every year at 00:05 EAT (21:05 UTC previous day — close enough)
+    'reset-annual-leave-balances': {
+        'task':     'core.reset_annual_leave_balances',
+        'schedule': crontab(hour=21, minute=5, day_of_month=31, month_of_year=12),
+    },
+}
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
