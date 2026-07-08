@@ -13,6 +13,29 @@ const ROLE_HOME: Record<string, string> = {
   EMPLOYEE: '/employee',
 };
 
+/** Delay helper */
+const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+/**
+ * Waits until Clerk can produce a non-null JWT, with exponential backoff.
+ * Returns the token, or null if all attempts fail.
+ */
+async function waitForToken(
+  getToken: () => Promise<string | null>,
+  maxAttempts = 8,
+): Promise<string | null> {
+  let token: string | null = null;
+  let wait = 200; // ms — doubles each attempt
+
+  for (let i = 0; i < maxAttempts; i++) {
+    token = await getToken();
+    if (token) return token;
+    await delay(wait);
+    wait = Math.min(wait * 2, 2000); // cap at 2 s
+  }
+  return null;
+}
+
 export function ClerkTokenProvider() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
   const router       = useRouter();
@@ -25,43 +48,34 @@ export function ClerkTokenProvider() {
     if (!isLoaded) return;
 
     if (isSignedIn) {
-      // Always wire the token getter so Axios has a fresh token source
+      // Wire Axios interceptor — must happen every render cycle so the getter
+      // always holds a reference to the current Clerk session's getToken.
       setTokenGetter(() => getToken());
 
       const { hasFetched, isLoading, fetchUser } = useAuthStore.getState();
 
-      // Only fetch once per session
+      // Only fetch once per sign-in session
       if (hasFetched || isLoading || didFetch.current) return;
       didFetch.current = true;
 
-      // Wait until Clerk can actually produce a non-null token before calling
-      // the backend — avoids the 401 race on first render.
       const doFetch = async () => {
-        let token: string | null = null;
-        let attempts = 0;
-
-        // Retry up to 5 times with 300ms gaps waiting for Clerk session
-        while (!token && attempts < 5) {
-          token = await getToken();
-          if (!token) {
-            attempts++;
-            await new Promise(r => setTimeout(r, 300));
-          }
-        }
+        // Block until Clerk can actually produce a JWT — prevents 401 race
+        const token = await waitForToken(getToken);
 
         if (!token) {
-          console.warn('[ClerkTokenProvider] Could not get token after retries — skipping fetchUser');
+          console.warn('[ClerkTokenProvider] Could not obtain Clerk token after retries. Skipping fetchUser.');
           return;
         }
 
         try {
           await fetchUser();
         } catch {
-          // Error handled in AppLayout (shows "Account not found" page)
+          // fetchUser records the error in the store (fetchError field).
+          // AppLayout reads store.fetchError and renders the appropriate screen.
           return;
         }
 
-        // Role-based redirect after successful profile load
+        // ── Role-based redirect after successful profile load ──────────────
         if (didRedirect.current) return;
         const { user } = useAuthStore.getState();
         if (!user?.role) return;
@@ -82,11 +96,17 @@ export function ClerkTokenProvider() {
 
       doFetch();
     } else {
+      // User signed out — reset all refs so a fresh sign-in retriggers fetch
       didRedirect.current = false;
       didFetch.current    = false;
       useAuthStore.getState().clearUser();
     }
-  }, [getToken, isLoaded, isSignedIn, pathname, router, searchParams]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn]);
+  // NOTE: getToken, pathname, router, searchParams intentionally excluded —
+  // we only want to re-run on auth state changes, not on every navigation.
+  // The Axios interceptor is wired inside the effect and always has a fresh
+  // closure over getToken via the setTokenGetter call above.
 
   return null;
 }

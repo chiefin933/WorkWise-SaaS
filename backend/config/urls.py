@@ -12,6 +12,7 @@ from core.views import DashboardStatsView, AuditTrailView
 from tenants.views import (
     CompanySettingsView, PayrollConfigView, UpgradePlanView,
     MpesaExpressPushView, MpesaExpressCallbackView, MpesaExpressStatusView,
+    RolePermissionsView,
 )
 from employees.views import EmployeeViewSet
 from payroll.views import PayrollRunViewSet, StatutoryExportView
@@ -53,10 +54,11 @@ urlpatterns = [
     path('api/audit-trail/',     AuditTrailView.as_view(),     name='audit-trail'),
 
     # ── Settings ─────────────────────────────────────────────────────────────
-    path('api/settings/company/',              CompanySettingsView.as_view(),   name='company_settings'),
-    path('api/settings/company/upgrade-plan/', UpgradePlanView.as_view(),       name='upgrade_plan'),
-    path('api/settings/payroll/',              PayrollConfigView.as_view(),     name='payroll_settings'),
-    path('api/settings/notifications/',        NotificationSettingsView.as_view(), name='notification_settings'),
+    path('api/settings/company/',              CompanySettingsView.as_view(),      name='company_settings'),
+    path('api/settings/company/upgrade-plan/', UpgradePlanView.as_view(),           name='upgrade_plan'),
+    path('api/settings/payroll/',              PayrollConfigView.as_view(),         name='payroll_settings'),
+    path('api/settings/notifications/',        NotificationSettingsView.as_view(),  name='notification_settings'),
+    path('api/settings/role-permissions/',     RolePermissionsView.as_view(),       name='role_permissions'),
 
     # ── Leave policy ─────────────────────────────────────────────────────────
     path('api/leave/policy/', LeavePolicyView.as_view(), name='leave_policy'),

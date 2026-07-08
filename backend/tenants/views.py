@@ -346,3 +346,116 @@ class MpesaExpressCallbackView(APIView):
         except Exception as e:
             logger.error("Error processing M-Pesa STK Callback: %s", e)
             return Response({"ResultCode": 1, "ResultDesc": "Server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RolePermissionsView(APIView):
+    """
+    GET  /api/settings/role-permissions/
+         Returns effective permissions per role + the full permission catalogue.
+
+    PATCH /api/settings/role-permissions/
+         Payload: { "role": "HR", "added": ["payroll.approve"], "removed": ["employee.delete"] }
+         ADMIN only.
+
+    POST  /api/settings/role-permissions/reset/
+         Payload: { "role": "HR" }
+         Resets a role back to its defaults.  ADMIN only.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_rp(self, tenant):
+        from core.role_permissions_model import RolePermission
+        rp, _ = RolePermission.objects.get_or_create(tenant=tenant)
+        return rp
+
+    def get(self, request):
+        from core.rbac import PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, get_role_permissions
+
+        tenant, err = tenant_required(request)
+        if err:
+            return err
+
+        rp = self._get_rp(tenant)
+
+        roles = ['HR', 'FINANCE', 'EMPLOYEE']
+        role_data = {}
+        for role in roles:
+            effective = set(get_role_permissions(role, rp.permissions))
+            default   = DEFAULT_ROLE_PERMISSIONS.get(role, set())
+            overrides = rp.permissions.get(role, {})
+            role_data[role] = {
+                'effective':  sorted(effective),
+                'default':    sorted(default),
+                'added':      sorted(overrides.get('added',   [])),
+                'removed':    sorted(overrides.get('removed', [])),
+            }
+
+        # Group catalogue by module prefix
+        catalogue = {}
+        for perm, desc in PERMISSIONS.items():
+            module = perm.split('.')[0]
+            catalogue.setdefault(module, []).append({'key': perm, 'description': desc})
+
+        return Response({'roles': role_data, 'catalogue': catalogue})
+
+    def patch(self, request):
+        if not IsAdmin().has_permission(request, self):
+            return Response(
+                {'error': 'Only administrators can modify role permissions.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from core.rbac import PERMISSIONS
+
+        tenant, err = tenant_required(request)
+        if err:
+            return err
+
+        role    = request.data.get('role', '').upper()
+        added   = request.data.get('added', [])
+        removed = request.data.get('removed', [])
+
+        if role not in ('HR', 'FINANCE', 'EMPLOYEE'):
+            return Response({'error': 'Role must be HR, FINANCE, or EMPLOYEE.'}, status=400)
+
+        unknown = [p for p in added + removed if p not in PERMISSIONS]
+        if unknown:
+            return Response({'error': f'Unknown permissions: {", ".join(unknown)}'}, status=400)
+
+        rp = self._get_rp(tenant)
+        overrides = rp.permissions.get(role, {'added': [], 'removed': []})
+        overrides['added']   = sorted(set(overrides.get('added',   []) + added)   - set(removed))
+        overrides['removed'] = sorted(set(overrides.get('removed', []) + removed) - set(added))
+        rp.permissions[role] = overrides
+        rp.save(update_fields=['permissions', 'updated_at'])
+
+        logger.info(
+            "Role permissions updated for tenant %s role %s by %s — added=%s removed=%s",
+            tenant.name, role, request.user.email, added, removed,
+        )
+        return Response({'message': f'{role} permissions updated.', 'overrides': overrides})
+
+    def post(self, request):
+        """Reset a role to its defaults."""
+        if not IsAdmin().has_permission(request, self):
+            return Response(
+                {'error': 'Only administrators can reset role permissions.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        tenant, err = tenant_required(request)
+        if err:
+            return err
+
+        role = request.data.get('role', '').upper()
+        if role not in ('HR', 'FINANCE', 'EMPLOYEE'):
+            return Response({'error': 'Role must be HR, FINANCE, or EMPLOYEE.'}, status=400)
+
+        rp = self._get_rp(tenant)
+        rp.reset_role(role)
+
+        logger.info(
+            "Role permissions reset to defaults for tenant %s role %s by %s",
+            tenant.name, role, request.user.email,
+        )
+        return Response({'message': f'{role} permissions reset to defaults.'})

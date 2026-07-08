@@ -236,35 +236,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   useEffect(() => { setIsMounted(true); }, []);
   const { theme, setTheme } = useTheme();
   const isAuthPage = pathname.startsWith('/auth');
-  const { user, hasFetched, isLoading, fetchUser } = useAuthStore();
 
-  useEffect(() => {
-    const doFetch = async () => {
-      if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
-        try {
-          await fetchUser();
-          setFetchError(null);
-        } catch (err: unknown) {
-          const e = err as { response?: { data?: { detail?: string; error?: string } }; message?: string };
-          const msg = e?.response?.data?.detail || e?.response?.data?.error || e?.message || '';
-          if (
-            msg.toLowerCase().includes('user not found') ||
-            msg.toLowerCase().includes('sign up') ||
-            msg.toLowerCase().includes('not in db')
-          ) {
-            setFetchError('no_user');
-          } else {
-            setFetchError('error');
-          }
-        }
-      }
-    };
-    doFetch();
-  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser]);
+  // ClerkTokenProvider owns fetchUser — we only read the result here.
+  const { user, hasFetched, isLoading, fetchError } = useAuthStore();
 
   // Compute days remaining on trial
   const trialDaysLeft = (() => {

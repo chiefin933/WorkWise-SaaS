@@ -34,6 +34,8 @@ import {
   Building2,
   Lock,
   RotateCcw,
+  ClipboardCheck,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -53,6 +55,8 @@ export default function PayrollPage() {
   const [selectedBankExportRun, setSelectedBankExportRun] = useState<PayrollRun | null>(null);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [sendPayslipsConfirm, setSendPayslipsConfirm] = useState<PayrollRun | null>(null);
+  const [lockingId, setLockingId] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const handleReverse = async (run: PayrollRun) => {
     if (!confirm(
@@ -71,6 +75,40 @@ export default function PayrollPage() {
       setReversingId(null);
     }
   };
+
+  const handleLock = async (run: PayrollRun) => {
+    if (!confirm(
+      `Lock the ${monthLabel(run.month, run.year)} payroll run?\n\n` +
+      `This is permanent — a locked run cannot be edited, reversed, or reprocessed. ` +
+      `Only do this after all disbursements are fully confirmed.`
+    )) return;
+    setLockingId(run.id);
+    try {
+      await api.post(`/payroll/${run.id}/lock/`);
+      invalidatePayroll();
+      showToast('Payroll run locked and archived successfully.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      showToast(e.response?.data?.error || 'Could not lock payroll run.', 'error');
+    } finally {
+      setLockingId(null);
+    }
+  };
+
+  const handleSubmitForApproval = async (id: string) => {
+    setSubmittingId(id);
+    try {
+      await api.post(`/payroll/${id}/submit-approval/`);
+      invalidatePayroll();
+      showToast('Payroll run submitted for approval.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      showToast(e.response?.data?.error || 'Could not submit for approval.', 'error');
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
   const queryClient = useQueryClient();
 
   const now = new Date();
@@ -201,10 +239,13 @@ export default function PayrollPage() {
 
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
-      paid:      'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
-      approved:  'bg-teal-500/10 text-teal-600 border border-teal-500/20',
-      processed: 'bg-blue-500/10 text-blue-600 border border-blue-500/20',
-      draft:     'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+      paid:              'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20',
+      approved:          'bg-teal-500/10 text-teal-600 border border-teal-500/20',
+      awaiting_approval: 'bg-blue-500/10 text-blue-600 border border-blue-500/20',
+      processed:         'bg-blue-500/10 text-blue-600 border border-blue-500/20',
+      draft:             'bg-amber-500/10 text-amber-600 border border-amber-500/20',
+      locked:            'bg-slate-500/10 text-slate-600 border border-slate-500/20',
+      reversed:          'bg-red-500/10 text-red-500 border border-red-500/20',
     };
     return map[s] ?? 'bg-slate-100 text-slate-500';
   };
@@ -373,13 +414,25 @@ export default function PayrollPage() {
                                 </Button>
                               )}
 
-                              {/* Processed → Approve */}
+                              {/* Processed → Submit for Approval or Direct Approve */}
                               {run.status === 'processed' && (
                                 <>
                                   <Button
                                     size="sm"
+                                    onClick={() => handleSubmitForApproval(run.id)}
+                                    disabled={submittingId === run.id}
+                                    title="Submit this run for finance/senior approval before payment"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 rounded-xl h-10 px-3"
+                                  >
+                                    {submittingId === run.id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <><ClipboardCheck className="h-4 w-4" /> Submit</>}
+                                  </Button>
+                                  <Button
+                                    size="sm"
                                     onClick={() => handleApprove(run.id)}
                                     disabled={approvingId === run.id}
+                                    title="Approve directly without a formal review step"
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl h-10 px-3"
                                   >
                                     {approvingId === run.id
@@ -397,6 +450,33 @@ export default function PayrollPage() {
                                     {emailingId === run.id
                                       ? <Loader2 className="h-4 w-4 animate-spin" />
                                       : <Mail className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
+                                    className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-500/10 text-teal-600"
+                                  >
+                                    {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                  </Button>
+                                </>
+                              )}
+
+                              {/* Awaiting Approval → Approve */}
+                              {run.status === 'awaiting_approval' && (
+                                <>
+                                  <span className="text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center gap-1.5">
+                                    <ClipboardCheck className="h-3.5 w-3.5" /> Awaiting Approval
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(run.id)}
+                                    disabled={approvingId === run.id}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl h-10 px-3"
+                                  >
+                                    {approvingId === run.id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <><CheckCircle className="h-4 w-4" /> Approve</>}
                                   </Button>
                                   <Button
                                     size="sm"
@@ -469,7 +549,7 @@ export default function PayrollPage() {
                                 </>
                               )}
 
-                              {/* Paid — show paid badge, resend payslips, reverse */}
+                              {/* Paid — show paid badge, resend payslips, reverse, lock */}
                               {run.status === 'paid' && (
                                 <>
                                   <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
@@ -502,8 +582,37 @@ export default function PayrollPage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
+                                    onClick={() => handleLock(run)}
+                                    disabled={lockingId === run.id}
+                                    title="Lock and archive this run permanently — cannot be undone"
+                                    className="rounded-xl h-10 w-10 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  >
+                                    {lockingId === run.id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <Archive className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
                                     onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
                                     className="h-10 w-10 p-0 rounded-xl hover:bg-teal-50 text-teal-600"
+                                  >
+                                    {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                  </Button>
+                                </>
+                              )}
+
+                              {/* Locked — permanent archive badge */}
+                              {run.status === 'locked' && (
+                                <>
+                                  <span className="text-xs font-bold text-slate-600 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 flex items-center gap-1.5">
+                                    <Lock className="h-3.5 w-3.5" /> Locked
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setExpandedRunId(expandedRunId === run.id ? null : run.id)}
+                                    className="h-10 w-10 p-0 rounded-xl hover:bg-slate-100 text-slate-500"
                                   >
                                     {expandedRunId === run.id ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                                   </Button>

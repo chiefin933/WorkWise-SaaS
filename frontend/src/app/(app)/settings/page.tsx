@@ -1,5 +1,4 @@
 'use client';
-'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -247,6 +246,7 @@ export default function SettingsPage() {
     { id: 'billing',  name: 'Billing & Plan',     icon: CreditCard },
     { id: 'payroll',  name: 'Payroll Config',     icon: Wallet },
     ...(user?.role === 'ADMIN' ? [{ id: 'team', name: 'Team Members', icon: Users }] : []),
+    ...(user?.role === 'ADMIN' ? [{ id: 'roles', name: 'Role Permissions', icon: Shield }] : []),
     { id: 'security',       name: 'Security & Access', icon: Shield },
     { id: 'notifications',  name: 'Notifications',     icon: Bell },
   ];
@@ -261,6 +261,66 @@ export default function SettingsPage() {
       return res.data;
     },
   });
+
+  // ── Role Permissions state ────────────────────────────────────────────────
+  type PermCatalogue = Record<string, { key: string; description: string }[]>;
+  type RoleData = {
+    effective: string[];
+    default:   string[];
+    added:     string[];
+    removed:   string[];
+  };
+  type RolePermissionsData = { roles: Record<string, RoleData>; catalogue: PermCatalogue };
+
+  const [selectedRole, setSelectedRole] = useState<'HR' | 'FINANCE' | 'EMPLOYEE'>('HR');
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleMsg, setRoleMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const { data: rolePerms, isLoading: isRolePermsLoading, refetch: refetchRolePerms } =
+    useQuery<RolePermissionsData>({
+      queryKey: ['role-permissions'],
+      enabled: user?.role === 'ADMIN',
+      queryFn: async () => {
+        const res = await api.get<RolePermissionsData>('/settings/role-permissions/');
+        return res.data;
+      },
+    });
+
+  const handleTogglePermission = async (perm: string, currentlyActive: boolean) => {
+    if (user?.role !== 'ADMIN') return;
+    setRoleSaving(true);
+    setRoleMsg(null);
+    try {
+      await api.patch('/settings/role-permissions/', {
+        role: selectedRole,
+        added:   currentlyActive ? [] : [perm],
+        removed: currentlyActive ? [perm] : [],
+      });
+      await refetchRolePerms();
+      setRoleMsg({ text: 'Permissions updated.', ok: true });
+      setTimeout(() => setRoleMsg(null), 2500);
+    } catch {
+      setRoleMsg({ text: 'Failed to update permissions.', ok: false });
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
+  const handleResetRole = async () => {
+    if (!confirm(`Reset ${selectedRole} permissions back to defaults? All customisations will be lost.`)) return;
+    setRoleSaving(true);
+    setRoleMsg(null);
+    try {
+      await api.post('/settings/role-permissions/', { role: selectedRole });
+      await refetchRolePerms();
+      setRoleMsg({ text: `${selectedRole} reset to defaults.`, ok: true });
+      setTimeout(() => setRoleMsg(null), 2500);
+    } catch {
+      setRoleMsg({ text: 'Failed to reset permissions.', ok: false });
+    } finally {
+      setRoleSaving(false);
+    }
+  };
 
   const showInviteToast = (message: string) => {
     setInviteToast(message);
@@ -877,6 +937,160 @@ export default function SettingsPage() {
                     </table>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Role Permissions tab — ADMIN only ──────────────────── */}
+            {activeTab === 'roles' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white font-outfit mb-1">Role Permissions</h3>
+                    <p className="text-sm text-slate-500">
+                      Customise what each role can access. ADMIN always has full access and cannot be modified.
+                    </p>
+                  </div>
+                  {roleMsg && (
+                    <span className={`text-sm font-bold px-4 py-2 rounded-xl border ${
+                      roleMsg.ok
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-red-50 text-red-600 border-red-200'
+                    }`}>
+                      {roleMsg.text}
+                    </span>
+                  )}
+                </div>
+
+                {/* Role selector */}
+                <div className="flex gap-3">
+                  {(['HR', 'FINANCE', 'EMPLOYEE'] as const).map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setSelectedRole(r)}
+                      className={`px-5 py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${
+                        selectedRole === r
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'
+                      }`}
+                    >
+                      {r === 'HR' ? 'HR Manager' : r === 'FINANCE' ? 'Finance Manager' : 'Employee'}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handleResetRole}
+                    disabled={roleSaving}
+                    className="ml-auto px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 border border-red-200 hover:bg-red-50 disabled:opacity-50 transition-all"
+                  >
+                    Reset to Defaults
+                  </button>
+                </div>
+
+                {isRolePermsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                  </div>
+                ) : rolePerms ? (
+                  <div className="space-y-6">
+                    {/* Stats bar */}
+                    {(() => {
+                      const rd = rolePerms.roles[selectedRole];
+                      const customCount = (rd?.added?.length ?? 0) + (rd?.removed?.length ?? 0);
+                      return (
+                        <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">
+                            {rd?.effective?.length ?? 0} active permissions
+                          </span>
+                          {customCount > 0 && (
+                            <span className="text-amber-600 font-medium">
+                              · {customCount} customisation{customCount !== 1 ? 's' : ''} from defaults
+                            </span>
+                          )}
+                          {rd?.added?.length > 0 && (
+                            <span className="text-emerald-600 font-medium">
+                              +{rd.added.length} added
+                            </span>
+                          )}
+                          {rd?.removed?.length > 0 && (
+                            <span className="text-red-500 font-medium">
+                              −{rd.removed.length} removed
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Permission groups */}
+                    {Object.entries(rolePerms.catalogue).map(([module, perms]) => {
+                      const rd = rolePerms.roles[selectedRole];
+                      const effectiveSet = new Set(rd?.effective ?? []);
+                      const addedSet = new Set(rd?.added ?? []);
+                      const removedSet = new Set(rd?.removed ?? []);
+
+                      return (
+                        <div key={module}>
+                          <div className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">
+                            {module.replace('_', ' ')}
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {perms.map(({ key, description }) => {
+                              const isActive = effectiveSet.has(key);
+                              const isAdded   = addedSet.has(key);
+                              const isRemoved = removedSet.has(key);
+
+                              return (
+                                <div
+                                  key={key}
+                                  className={`flex items-center gap-4 px-4 py-3 rounded-xl border transition-all ${
+                                    isActive
+                                      ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                                      : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 opacity-60'
+                                  }`}
+                                >
+                                  {/* Toggle */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTogglePermission(key, isActive)}
+                                    disabled={roleSaving}
+                                    className={`relative flex-shrink-0 h-6 w-11 rounded-full transition-colors duration-200 disabled:cursor-not-allowed ${
+                                      isActive ? 'bg-teal-500' : 'bg-slate-300 dark:bg-slate-600'
+                                    }`}
+                                    aria-label={`${isActive ? 'Remove' : 'Grant'} ${key}`}
+                                  >
+                                    <div className={`absolute top-1 h-4 w-4 bg-white rounded-full shadow-sm transition-all duration-200 ${
+                                      isActive ? 'right-1' : 'left-1'
+                                    }`} />
+                                  </button>
+
+                                  {/* Perm key + description */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-xs font-mono font-bold ${isActive ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400'}`}>
+                                      {key}
+                                      {isAdded && (
+                                        <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                          +added
+                                        </span>
+                                      )}
+                                      {isRemoved && (
+                                        <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                          −removed
+                                        </span>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5 truncate">{description}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400 text-sm">
+                    Could not load permissions. Try refreshing.
+                  </div>
+                )}
               </div>
             )}
 

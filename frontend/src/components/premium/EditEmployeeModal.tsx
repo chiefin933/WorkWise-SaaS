@@ -15,7 +15,7 @@ interface EditEmployeeModalProps {
   onSuccess: () => void;
 }
 
-type Tab = 'basic' | 'statutory' | 'payment';
+type Tab = 'basic' | 'statutory' | 'payment' | 'lifecycle';
 
 const KRA_PIN_REGEX = /^[A-Z]\d{9}[A-Z]$/;
 
@@ -45,6 +45,14 @@ export function EditEmployeeModal({
     payroll_number: '', work_permit_number: '',
     // Payment
     payment_method: 'bank',
+    // Lifecycle
+    lifecycle_stage: 'confirmed',
+    birth_date: '',
+    probation_end_date: '',
+    confirmed_date: '',
+    contract_end_date: '',
+    exit_date: '',
+    exit_reason: '',
   });
 
   useEffect(() => {
@@ -72,6 +80,13 @@ export function EditEmployeeModal({
         payroll_number:     e.payroll_number || '',
         work_permit_number: e.work_permit_number || '',
         payment_method:     e.payment_method || 'bank',
+        lifecycle_stage:    (e as Employee & { lifecycle_stage?: string }).lifecycle_stage || 'confirmed',
+        birth_date:         (e as Employee & { birth_date?: string }).birth_date || '',
+        probation_end_date: (e as Employee & { probation_end_date?: string }).probation_end_date || '',
+        confirmed_date:     (e as Employee & { confirmed_date?: string }).confirmed_date || '',
+        contract_end_date:  (e as Employee & { contract_end_date?: string }).contract_end_date || '',
+        exit_date:          (e as Employee & { exit_date?: string }).exit_date || '',
+        exit_reason:        (e as Employee & { exit_reason?: string }).exit_reason || '',
       });
       setError('');
       setKraPinError('');
@@ -101,6 +116,12 @@ export function EditEmployeeModal({
       await api.patch(`/employees/${employee.id}/`, {
         ...formData,
         kra_pin: formData.kra_pin ? formData.kra_pin.toUpperCase() : '',
+        // Send null for empty date fields so Django stores NULL not empty string
+        birth_date:         formData.birth_date         || null,
+        probation_end_date: formData.probation_end_date || null,
+        confirmed_date:     formData.confirmed_date     || null,
+        contract_end_date:  formData.contract_end_date  || null,
+        exit_date:          formData.exit_date          || null,
       });
       onSuccess();
       onClose();
@@ -130,6 +151,7 @@ export function EditEmployeeModal({
     { id: 'basic',     label: 'Basic Info' },
     { id: 'statutory', label: 'Statutory IDs' },
     { id: 'payment',   label: 'Payment' },
+    { id: 'lifecycle', label: 'Lifecycle' },
   ];
 
   return (
@@ -306,6 +328,107 @@ export function EditEmployeeModal({
                         <p className="font-bold text-slate-600 dark:text-slate-400 mb-1">Note on sensitive fields</p>
                         M-Pesa number and bank account details are stored encrypted (AES-256-GCM).
                         To update them, use the Bulk CSV import or contact your system administrator.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Lifecycle Tab ───────────────────────────────────── */}
+                  {activeTab === 'lifecycle' && (
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className={labelCls}>Lifecycle Stage</label>
+                        <select
+                          value={formData.lifecycle_stage}
+                          onChange={e => set('lifecycle_stage', e.target.value)}
+                          className={inputCls}
+                        >
+                          {[
+                            { value: 'hired',       label: 'Hired' },
+                            { value: 'onboarding',  label: 'Onboarding' },
+                            { value: 'probation',   label: 'On Probation' },
+                            { value: 'confirmed',   label: 'Confirmed' },
+                            { value: 'transferred', label: 'Transferred' },
+                            { value: 'resigned',    label: 'Resigned' },
+                            { value: 'terminated',  label: 'Terminated' },
+                            { value: 'retired',     label: 'Retired' },
+                            { value: 'archived',    label: 'Archived' },
+                          ].map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Date of Birth</label>
+                          <input
+                            type="date"
+                            value={formData.birth_date}
+                            onChange={e => set('birth_date', e.target.value)}
+                            className={inputCls}
+                          />
+                          <p className="text-xs text-slate-400">Used for birthday reminders</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Probation End Date</label>
+                          <input
+                            type="date"
+                            value={formData.probation_end_date}
+                            onChange={e => set('probation_end_date', e.target.value)}
+                            className={inputCls}
+                          />
+                          <p className="text-xs text-slate-400">Alert sent 7 days before expiry</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Confirmation Date</label>
+                          <input
+                            type="date"
+                            value={formData.confirmed_date}
+                            onChange={e => set('confirmed_date', e.target.value)}
+                            className={inputCls}
+                          />
+                          <p className="text-xs text-slate-400">Date employee was confirmed after probation</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Contract End Date</label>
+                          <input
+                            type="date"
+                            value={formData.contract_end_date}
+                            onChange={e => set('contract_end_date', e.target.value)}
+                            className={inputCls}
+                          />
+                          <p className="text-xs text-slate-400">For fixed-term contracts — expiry alert sent</p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className={labelCls}>Exit Date</label>
+                          <input
+                            type="date"
+                            value={formData.exit_date}
+                            onChange={e => set('exit_date', e.target.value)}
+                            className={inputCls}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className={labelCls}>Exit Reason</label>
+                        <textarea
+                          value={formData.exit_reason}
+                          onChange={e => set('exit_reason', e.target.value)}
+                          rows={3}
+                          className={`${inputCls} resize-none`}
+                          placeholder="Resignation, redundancy, end of contract..."
+                        />
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
+                        <p className="font-bold mb-1">Automated alerts</p>
+                        Celery Beat sends reminders 7 days before probation end and contract expiry.
+                        Birthday emails go out on the employee&apos;s birth date. Ensure Celery is running in production.
                       </div>
                     </div>
                   )}
