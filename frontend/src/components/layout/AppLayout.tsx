@@ -242,8 +242,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isAuthPage = pathname.startsWith('/auth');
   const { user, hasFetched, isLoading, fetchUser } = useAuthStore();
 
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
   useEffect(() => {
     const doFetch = async () => {
       if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
