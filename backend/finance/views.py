@@ -123,7 +123,8 @@ class DepartmentBudgetViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsHROrFinanceOrAdmin]
 
     def get_queryset(self):
-        qs = DepartmentBudget.objects.filter(tenant=self.request.user.tenant)
+        # DepartmentBudget uses TenantScopedModel — auto-scoped via context, no direct tenant FK
+        qs = DepartmentBudget.objects.all()
         year  = self.request.query_params.get('year')
         month = self.request.query_params.get('month')
         dept  = self.request.query_params.get('department')
@@ -136,7 +137,8 @@ class DepartmentBudgetViewSet(viewsets.ModelViewSet):
         if self.request.user.role not in ('ADMIN', 'FINANCE'):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Only Finance Manager or Admin can create budgets.')
-        serializer.save(tenant=self.request.user.tenant, created_by=self.request.user)
+        # DepartmentBudget has no direct tenant FK — auto-scoped by TenantManager context
+        serializer.save(created_by=self.request.user)
 
     def perform_update(self, serializer):
         if self.request.user.role not in ('ADMIN', 'FINANCE'):
@@ -159,7 +161,7 @@ class DepartmentBudgetViewSet(viewsets.ModelViewSet):
         month  = int(request.query_params.get('month', today.month))
 
         budgets = DepartmentBudget.objects.filter(
-            tenant=tenant, period_year=year, period_month=month
+            period_year=year, period_month=month
         )
 
         result = []
@@ -209,10 +211,11 @@ class PettyCashFundViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsFinanceOrAdmin]
 
     def get_queryset(self):
-        return PettyCashFund.objects.filter(tenant=self.request.user.tenant)
+        # PettyCashFund uses TenantScopedModel — auto-scoped by context
+        return PettyCashFund.objects.all()
 
     def perform_create(self, serializer):
-        fund = serializer.save(tenant=self.request.user.tenant)
+        fund = serializer.save()
         fund.current_balance = fund.opening_balance
         fund.save(update_fields=['current_balance'])
 
@@ -231,7 +234,6 @@ class PettyCashFundViewSet(viewsets.ModelViewSet):
         serializer = PettyCashTransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         txn = serializer.save(
-            tenant=self.request.user.tenant,
             fund=fund,
             requested_by=request.user,
             status='pending',
@@ -332,8 +334,10 @@ class FinancialSummaryView(APIView):
         )['t'] or Decimal('0')
 
         # ── Budget utilization ────────────────────────────────────────────────
+        # DepartmentBudget uses TenantScopedModel — auto-scoped by context manager,
+        # do NOT filter by tenant= directly (no direct tenant FK on the model)
         budgets = DepartmentBudget.objects.filter(
-            tenant=tenant, period_year=year, period_month=month
+            period_year=year, period_month=month
         )
         total_budget = budgets.aggregate(t=Sum('budget_amount'))['t'] or Decimal('0')
         total_actual = payroll_cost + total_expenses

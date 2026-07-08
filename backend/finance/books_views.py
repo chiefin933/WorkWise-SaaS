@@ -42,7 +42,8 @@ class ChartOfAccountViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsHROrFinanceOrAdmin]
 
     def get_queryset(self):
-        qs = ChartOfAccount.objects.filter(tenant=self.request.user.tenant)
+        # ChartOfAccount uses TenantScopedModel — auto-scoped by context
+        qs = ChartOfAccount.objects.all()
         account_type = self.request.query_params.get('type')
         active_only  = self.request.query_params.get('active', 'true').lower() == 'true'
         if account_type:
@@ -54,7 +55,7 @@ class ChartOfAccountViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if self.request.user.role not in ('ADMIN', 'FINANCE'):
             raise ValidationError('Only Finance Manager or Admin can add accounts.')
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         account = self.get_object()
@@ -77,7 +78,7 @@ class ChartOfAccountViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
         from finance.seed_coa import seed_chart_of_accounts
         seed_chart_of_accounts(request.user.tenant)
-        count = ChartOfAccount.objects.filter(tenant=request.user.tenant).count()
+        count = ChartOfAccount.objects.all().count()
         return Response({'message': f'Chart of accounts seeded. {count} accounts available.'})
 
     @action(detail=True, methods=['get'], url_path='ledger')
@@ -128,7 +129,8 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
         return JournalEntrySerializer
 
     def get_queryset(self):
-        qs     = JournalEntry.objects.filter(tenant=self.request.user.tenant)
+        # JournalEntry uses TenantScopedModel — auto-scoped by context, no direct tenant FK
+        qs     = JournalEntry.objects.all()
         src    = self.request.query_params.get('source')
         st     = self.request.query_params.get('status')
         date_f = self.request.query_params.get('date_from')
@@ -381,7 +383,7 @@ class GeneralLedgerView(APIView):
         date_to   = request.query_params.get('date_to',   today.isoformat())
         acct_code = request.query_params.get('account')
 
-        accounts = ChartOfAccount.objects.filter(tenant=tenant, is_active=True).order_by('code')
+        accounts = ChartOfAccount.objects.filter(is_active=True).order_by('code')
         if acct_code:
             accounts = accounts.filter(code=acct_code)
 

@@ -103,30 +103,38 @@ def seed_chart_of_accounts(tenant) -> None:
     """
     Create the standard Chart of Accounts for a newly created tenant.
     Safe to call multiple times — uses get_or_create so existing accounts are not duplicated.
+
+    Uses the unscoped manager + sets the tenant context so the TenantManager
+    works correctly even when called from signals outside the request cycle.
     """
     from finance.books_models import ChartOfAccount
+    from core.tenant_context import set_current_tenant, clear_current_tenant
 
-    # First pass: create all accounts without parent links
-    code_to_obj = {}
-    for acct in STANDARD_ACCOUNTS:
-        obj, _ = ChartOfAccount.objects.get_or_create(
-            tenant=tenant,
-            code=acct['code'],
-            defaults={
-                'name':         acct['name'],
-                'account_type': acct['type'],
-                'is_system':    True,
-                'is_active':    True,
-            }
-        )
-        code_to_obj[acct['code']] = obj
+    set_current_tenant(tenant)
+    try:
+        # First pass: create all accounts without parent links
+        code_to_obj = {}
+        for acct in STANDARD_ACCOUNTS:
+            # Use unscoped.get_or_create — no direct tenant FK on ChartOfAccount
+            obj, _ = ChartOfAccount.unscoped.get_or_create(
+                code=acct['code'],
+                defaults={
+                    'name':         acct['name'],
+                    'account_type': acct['type'],
+                    'is_system':    True,
+                    'is_active':    True,
+                }
+            )
+            code_to_obj[acct['code']] = obj
 
-    # Second pass: link parents
-    for acct in STANDARD_ACCOUNTS:
-        if acct['parent'] and acct['code'] in code_to_obj:
-            parent_obj = code_to_obj.get(acct['parent'])
-            if parent_obj:
-                obj = code_to_obj[acct['code']]
-                if obj.parent_id != parent_obj.id:
-                    obj.parent = parent_obj
-                    obj.save(update_fields=['parent'])
+        # Second pass: link parents
+        for acct in STANDARD_ACCOUNTS:
+            if acct['parent'] and acct['code'] in code_to_obj:
+                parent_obj = code_to_obj.get(acct['parent'])
+                if parent_obj:
+                    obj = code_to_obj[acct['code']]
+                    if obj.parent_id != parent_obj.id:
+                        obj.parent = parent_obj
+                        obj.save(update_fields=['parent'])
+    finally:
+        clear_current_tenant()

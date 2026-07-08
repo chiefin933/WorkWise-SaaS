@@ -262,8 +262,7 @@ class PayrollRunViewSet(viewsets.ModelViewSet):
                 import calendar as _cal
                 from finance.books_models import JournalEntry
                 ref = f"PR-{payroll_run.year}-{payroll_run.month:02d}"
-                je = JournalEntry.objects.filter(
-                    tenant=payroll_run.tenant,
+                je = JournalEntry.unscoped.filter(
                     reference=ref,
                     source='PAYROLL',
                     status='POSTED',

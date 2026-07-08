@@ -8,6 +8,14 @@ Automatically posts journal entries to the books when:
 
 Called from Django signals in finance/signals.py.
 All amounts are in KES.
+
+NOTE on TenantScopedModel:
+  ChartOfAccount, JournalEntry, JournalLine extend TenantScopedModel which uses
+  a context-local tenant manager.  Since signals run OUTSIDE the request/response
+  cycle, the context tenant may not be set.  We therefore:
+    - Use `.unscoped` manager for reads/creates to bypass the context filter.
+    - Temporarily activate the tenant context via set_current_tenant() so that
+      any implicit manager calls inside model methods also resolve correctly.
 """
 
 import logging
@@ -39,14 +47,24 @@ ACCOUNT_CODES = {
 
 
 def _get_account(tenant, code):
+    """
+    Look up a ChartOfAccount by code for the given tenant.
+    Uses unscoped manager because this is called from signals where the
+    tenant context middleware is not active.
+    """
     from finance.books_models import ChartOfAccount
     try:
-        return ChartOfAccount.objects.get(tenant=tenant, code=code, is_active=True)
+        return ChartOfAccount.unscoped.get(code=code, is_active=True)
     except ChartOfAccount.DoesNotExist:
         logger.warning("Auto-post: Account %s not found for tenant %s — seeding COA", code, tenant.name)
-        from finance.seed_coa import seed_chart_of_accounts
-        seed_chart_of_accounts(tenant)
-        return ChartOfAccount.objects.get(tenant=tenant, code=code, is_active=True)
+        from core.tenant_context import set_current_tenant, clear_current_tenant
+        set_current_tenant(tenant)
+        try:
+            from finance.seed_coa import seed_chart_of_accounts
+            seed_chart_of_accounts(tenant)
+        finally:
+            clear_current_tenant()
+        return ChartOfAccount.unscoped.get(code=code, is_active=True)
 
 
 def post_payroll_to_books(payroll_run) -> None:
@@ -75,13 +93,14 @@ def post_payroll_to_books(payroll_run) -> None:
     net    = sum(Decimal(str(i.net_pay))       for i in items)
 
     import calendar
+    from django.utils import timezone as tz
     month_name = calendar.month_name[payroll_run.month]
 
     try:
         with transaction.atomic():
-            entry = JournalEntry.objects.create(
-                tenant=tenant,
-                date=payroll_run.updated_at.date() if hasattr(payroll_run, 'updated_at') else __import__('django.utils.timezone', fromlist=['now']).now().date(),
+            # JournalEntry has no direct tenant FK — use unscoped manager
+            entry = JournalEntry.unscoped.create(
+                date=payroll_run.updated_at.date() if hasattr(payroll_run, 'updated_at') else tz.now().date(),
                 reference=f"PR-{payroll_run.year}-{payroll_run.month:02d}",
                 description=f"{month_name} {payroll_run.year} Payroll — {items.count()} employees",
                 source='PAYROLL',
@@ -118,19 +137,20 @@ def post_expense_to_books(expense_claim) -> None:
       CR  1102  Bank
     """
     from finance.books_models import JournalEntry, JournalLine
+    from django.utils import timezone as tz
 
-    tenant = expense_claim.tenant
+    tenant = expense_claim.employee.tenant
     amount = Decimal(str(expense_claim.amount))
     cat    = expense_claim.category
     acct_code = ACCOUNT_CODES.get(cat, '5300')
+    emp_name = expense_claim.employee.name if expense_claim.employee_id else 'Unknown'
 
     try:
         with transaction.atomic():
-            entry = JournalEntry.objects.create(
-                tenant=tenant,
-                date=expense_claim.paid_at.date() if expense_claim.paid_at else __import__('django.utils.timezone', fromlist=['now']).now().date(),
+            entry = JournalEntry.unscoped.create(
+                date=expense_claim.paid_at.date() if expense_claim.paid_at else tz.now().date(),
                 reference=f"EXP-{str(expense_claim.id)[:8].upper()}",
-                description=f"Expense: {expense_claim.title} — {expense_claim.employee_name if hasattr(expense_claim, 'employee_name') else expense_claim.employee.name}",
+                description=f"Expense: {expense_claim.title} — {emp_name}",
                 source='EXPENSE',
                 status='DRAFT',
             )
@@ -160,15 +180,20 @@ def post_petty_cash_to_books(txn) -> None:
       CR  1101  Petty Cash
     """
     from finance.books_models import JournalEntry, JournalLine
+    from django.utils import timezone as tz
 
-    tenant = txn.tenant
+    # PettyCashFund.custodian → user → tenant
+    tenant = txn.fund.custodian.tenant if txn.fund.custodian else None
+    if tenant is None:
+        logger.warning("Auto-post petty cash: could not resolve tenant for txn %s", txn.id)
+        return
+
     amount = Decimal(str(txn.amount))
 
     try:
         with transaction.atomic():
-            entry = JournalEntry.objects.create(
-                tenant=tenant,
-                date=txn.disbursed_at.date() if txn.disbursed_at else __import__('django.utils.timezone', fromlist=['now']).now().date(),
+            entry = JournalEntry.unscoped.create(
+                date=txn.disbursed_at.date() if txn.disbursed_at else tz.now().date(),
                 reference=f"PC-{str(txn.id)[:8].upper()}",
                 description=f"Petty Cash: {txn.purpose}",
                 source='PETTY',

@@ -166,7 +166,6 @@ class JournalEntry(TenantScopedModel):
         if self.status != 'POSTED':
             raise ValueError("Only posted entries can be reversed.")
         reversal = JournalEntry.objects.create(
-            tenant=self.tenant,
             date=timezone.now().date(),
             reference=f"REV-{self.reference or str(self.id)[:8]}",
             description=description or f"Reversal of: {self.description}",

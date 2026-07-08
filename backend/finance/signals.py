@@ -47,11 +47,11 @@ def auto_post_payroll(sender, instance, created, **kwargs):
         return
     old_status = getattr(instance, '_pre_save_status', None)
     if old_status != 'approved' and instance.status == 'approved':
-        # Check if a JE was already posted for this run
+        # Check if a JE was already posted for this run.
+        # Use unscoped manager — signals run outside the tenant context middleware.
         from finance.books_models import JournalEntry
         ref = f"PR-{instance.year}-{instance.month:02d}"
-        if not JournalEntry.objects.filter(
-            tenant=instance.tenant,
+        if not JournalEntry.unscoped.filter(
             reference=ref,
             source='PAYROLL',
             status='POSTED',
