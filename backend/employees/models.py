@@ -47,6 +47,31 @@ class Employee(TenantScopedModel):
     work_permit_number = models.CharField(max_length=100, blank=True, default='',
                                            help_text='Required for non-citizen employees')
 
+    # ── Employee lifecycle ────────────────────────────────────────────────────
+    LIFECYCLE_STAGES = [
+        ('hired',        'Hired'),
+        ('onboarding',   'Onboarding'),
+        ('probation',    'On Probation'),
+        ('confirmed',    'Confirmed'),
+        ('transferred',  'Transferred'),
+        ('resigned',     'Resigned'),
+        ('terminated',   'Terminated'),
+        ('retired',      'Retired'),
+        ('archived',     'Archived'),
+    ]
+    lifecycle_stage    = models.CharField(max_length=20, choices=LIFECYCLE_STAGES, default='confirmed')
+    probation_end_date = models.DateField(null=True, blank=True,
+                                          help_text='End of probation — triggers automated alert 7 days before')
+    contract_end_date  = models.DateField(null=True, blank=True,
+                                          help_text='Fixed-term contract end date — triggers expiry alerts')
+    birth_date         = models.DateField(null=True, blank=True,
+                                          help_text='Date of birth — used for birthday reminders')
+    confirmed_date     = models.DateField(null=True, blank=True,
+                                          help_text='Date employee was confirmed after probation')
+    exit_date          = models.DateField(null=True, blank=True,
+                                          help_text='Date employee left the organisation')
+    exit_reason        = models.TextField(blank=True, default='')
+
     employment_type = models.CharField(max_length=20, choices=EMPLOYMENT_TYPES, default='monthly')
     salary_basic = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     allowances = models.JSONField(default=dict, blank=True) # e.g. {"house": 5000, "transport": 3000}

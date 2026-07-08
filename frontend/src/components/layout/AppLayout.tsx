@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth, useSignOut } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 import { useTheme } from 'next-themes';
 import Sidebar from './Sidebar';
 import { Search, Sun, Moon, Users, Loader2, X, AlertTriangle } from 'lucide-react';
@@ -12,7 +12,6 @@ import ProfileDropdown from './ProfileDropdown';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import Link from 'next/link';
-import { useToast } from './ui/toast';
 
 // ── Search types ──────────────────────────────────────────────────────────────
 interface SearchResult {
@@ -233,34 +232,41 @@ function GlobalSearch() {
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isLoaded: clerkLoaded, isSignedIn } = useAuth();
-  const { signOut } = useSignOut();
+  const { isLoaded: clerkLoaded, isSignedIn, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
-  const { toast, container: toastContainer } = useToast();
+  const [fetchError, setFetchError] = useState<string | null>(null);
   useEffect(() => { setIsMounted(true); }, []);
   const { theme, setTheme } = useTheme();
   const isAuthPage = pathname.startsWith('/auth');
   const { user, hasFetched, isLoading, fetchUser } = useAuthStore();
+
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const doFetch = async () => {
       if (clerkLoaded && isSignedIn && !hasFetched && !isLoading) {
         try {
           await fetchUser();
-        } catch (err: any) {
-          // Check if error is user not found
-          const msg = err?.response?.data?.detail || err?.response?.data?.error || err?.message || '';
-          if (msg.includes('User not found')) {
-            toast('User not found, sign up first', 'error');
-            await signOut({ redirectUrl: '/auth/register' });
+          setFetchError(null);
+        } catch (err: unknown) {
+          const e = err as { response?: { data?: { detail?: string; error?: string } }; message?: string };
+          const msg = e?.response?.data?.detail || e?.response?.data?.error || e?.message || '';
+          if (
+            msg.toLowerCase().includes('user not found') ||
+            msg.toLowerCase().includes('sign up') ||
+            msg.toLowerCase().includes('not in db')
+          ) {
+            setFetchError('no_user');
+          } else {
+            setFetchError('error');
           }
         }
       }
     };
     doFetch();
-  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser, signOut, toast, router]);
+  }, [clerkLoaded, isSignedIn, hasFetched, isLoading, fetchUser]);
 
   // Compute days remaining on trial
   const trialDaysLeft = (() => {
@@ -283,10 +289,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!clerkLoaded || !hasFetched || isLoading) {
+  if (!clerkLoaded || (!hasFetched && !fetchError) || isLoading) {
     return (
       <div className="flex h-screen bg-[#F8FAFC] dark:bg-slate-950 items-center justify-center">
         <div className="h-10 w-10 border-4 border-teal-500/20 border-t-teal-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // User logged into Clerk but not in WorkWise DB — not a registered company
+  if (fetchError === 'no_user') {
+    return (
+      <div className="flex h-screen bg-slate-950 items-center justify-center p-6">
+        <div className="text-center max-w-md">
+          <div className="h-16 w-16 mx-auto bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mb-6">
+            <AlertTriangle className="h-8 w-8 text-red-400" />
+          </div>
+          <h1 className="text-2xl font-black text-white font-outfit mb-3">Account not found</h1>
+          <p className="text-slate-400 text-sm mb-6 leading-relaxed">
+            Your account is not registered in WorkWise. You need to be invited by your company&apos;s administrator,
+            or create a new company workspace.
+          </p>
+          <div className="flex flex-col gap-3">
+            <a href="/auth/register"
+              className="px-6 py-3 rounded-2xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm transition-all">
+              Create a Company Workspace
+            </a>
+            <button
+              onClick={() => signOut({ redirectUrl: '/' })}
+              className="px-6 py-3 rounded-2xl border border-white/10 text-slate-400 hover:text-white font-bold text-sm transition-all">
+              Sign Out
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -346,7 +381,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-      {toastContainer}
     </div>
   );
 }

@@ -32,11 +32,17 @@ function BudgetModal({
   });
   const [loading, setLoading] = useState(false);
 
+  const [customDept, setCustomDept] = useState('');
+
   const set = (k: string, v: string | number) => setForm(f => ({ ...f, [k]: v }));
+
+  // Effective department value — use custom input when __custom__ is selected
+  const effectiveDept = form.department === '__custom__' ? customDept.trim() : form.department.trim();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.department.trim()) { toast('Select or enter a department.', 'error'); return; }
+    const deptToSubmit = form.department === '__custom__' ? customDept.trim() : form.department.trim();
+    if (!deptToSubmit) { toast('Select or enter a department.', 'error'); return; }
     if (!form.budget_amount || Number(form.budget_amount) <= 0) { toast('Enter a valid budget amount.', 'error'); return; }
     setLoading(true);
     try {
@@ -45,7 +51,7 @@ function BudgetModal({
         toast('Budget updated.', 'success');
       } else {
         await financeApi.createBudget({
-          department:   form.department.trim(),
+          department:   deptToSubmit,
           period_month: Number(form.period_month),
           period_year:  Number(form.period_year),
           budget_amount: Number(form.budget_amount),
@@ -87,8 +93,14 @@ function BudgetModal({
               </select>
             )}
             {form.department === '__custom__' && (
-              <input type="text" placeholder="Enter department name" onChange={e => set('department', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-teal-500 mt-2" />
+              <input
+                type="text"
+                placeholder="Enter department name"
+                value={customDept}
+                onChange={e => setCustomDept(e.target.value)}
+                autoFocus
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm outline-none focus:ring-2 focus:ring-teal-500 mt-2"
+              />
             )}
             {budget && <input type="text" value={form.department} disabled className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 text-sm" />}
           </div>

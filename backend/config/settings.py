@@ -44,7 +44,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'django_celery_results',
-    'axes',
     'core',
     'tenants',
     'users',
@@ -56,11 +55,6 @@ INSTALLED_APPS = [
     'reports',
     'django_daraja',
     'finance',
-    'workflows',
-    'documents',
-    'reports_engine',
-    'integrations',
-    'backup',
 ]
 
 MIDDLEWARE = [
@@ -72,7 +66,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'axes.middleware.AxesMiddleware',
     'core.middleware.TenantMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -225,9 +218,6 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 AUTH_USER_MODEL = 'users.User'
 
 AUTHENTICATION_BACKENDS = [
-    # AxesStandaloneBackend should be first.
-    'axes.backends.AxesStandaloneBackend',
-    # Django ModelBackend is the default authentication backend.
     'django.contrib.auth.backends.ModelBackend',
 ]
 
