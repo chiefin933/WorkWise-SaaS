@@ -10,7 +10,7 @@ import api from '@/lib/api';
 import type { ExpenseClaim, Employee } from '@/lib/types';
 import {
   Receipt, Plus, Filter, ChevronDown, X, Loader2,
-  CheckCircle2, XCircle, DollarSign, Clock, CreditCard,
+  CheckCircle2, XCircle, DollarSign, AlertCircle,
   FileText, Calendar, Tag, MessageSquare, Eye, Banknote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
