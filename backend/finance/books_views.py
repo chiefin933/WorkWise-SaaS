@@ -142,7 +142,8 @@ class JournalEntryViewSet(viewsets.ModelViewSet):
         return qs.prefetch_related('lines__account').select_related('created_by')
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant, created_by=self.request.user)
+        # JournalEntry uses TenantScopedModel — no direct tenant FK
+        serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def post_entry(self, request, pk=None):

@@ -66,7 +66,8 @@ class ExpenseClaimViewSet(viewsets.ModelViewSet):
         if employee.tenant != tenant:
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'employee': 'Invalid employee for this tenant.'})
-        serializer.save(tenant=tenant, submitted_by=self.request.user)
+        # ExpenseClaim uses TenantScopedModel — no direct tenant FK, scoped via employee__tenant
+        serializer.save(submitted_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
